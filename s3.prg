@@ -1,0 +1,44 @@
+/*
+  S1 Test Program
+*/
+
+          bgn   "s1"                  // Begin of Program "s1"
+          bpm   140.0                 // Set sequencer BPM 
+          sig   8,8                   // Set sequencer TimeSignature
+          sel   a1                    // select a1 as current context/setup/..?   TODO: find suiting name 
+          ld    "audio.wav"           // Load audio.wav into current workspace
+          fit   1.0
+          sig   8,8                  // Set sequencer TimeSignature
+
+          set   eight,1.0/8.0
+
+          mrk   mst,0.0
+          mrk   m1,eight
+          mrk   m2,2.0*eight
+          mrk   m3,3.0*eight
+          mrk   m4,4.0*eight
+          mrk   m5,5.0*eight
+          mrk   m6,6.0*eight
+          mrk   m7,7.0*eight
+          srst 
+start:    
+          playf ms
+          wait 0:1:0
+          playf m1
+          wait 0:1:0
+          playf m2
+          wait 0:1:0
+          playf m3
+          wait 0:1:0
+          playf m4
+          wait 0:1:0
+          playf m5
+          wait 0:1:0
+          playf m6
+          wait 0:1:0
+          playf m7
+          wait 0:1:0
+          jmp start
+h:                                    // label
+          hlt                         // halt program execution
+
