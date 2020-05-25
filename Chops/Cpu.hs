@@ -17,7 +17,6 @@ import Data.Function
 
 import Data.IORef
 
-import System.Clock
 
 import Formatting
 
@@ -31,7 +30,10 @@ import qualified Data.Vector.Storable             as SV
 
 
 import Debug.Trace
+import ConcurrentBuffer
 
+
+buffsize = 4096 * 8
 type Program = [Stmt]
 
 
@@ -40,11 +42,10 @@ defaultWSpace = WSpace [] SV.empty 0 1.5 0 Fwd M.empty
 ldWspace :: String -> Computation WSpace
 ldWspace wsn = do
   vm <- get
-  wsps <- liftIO $ readIORef $ _wspaces vm
+  let wsps = _wspaces vm
   case M.lookup wsn wsps of
     Nothing -> do let nws = defaultWSpace 
-                  liftIO $ modifyIORef' (_wspaces vm) (M.insert wsn nws) 
-                  modify(\vm -> vm {_cwspace = Just wsn})
+                  modify(\vm -> vm {_cwspace = Just wsn,_wspaces = M.insert wsn nws (_wspaces vm)})
                   pure nws
     Just ws' -> do
                   modify(\vm -> vm {_cwspace = Just wsn})
@@ -54,16 +55,16 @@ modifyWspace :: (WSpace -> WSpace) -> Computation ()
 modifyWspace f = 
   do
       vm <- get
-      wsps <- liftIO $ readIORef $ _wspaces vm
       case _cwspace vm of
         Nothing -> error "Cant load into non-existing Workspace"
-        Just wsn -> liftIO $ modifyIORef' (_wspaces vm) 
-                              (\wsps -> case M.lookup wsn wsps of
-                                          Nothing -> wsps
-                                          Just ws -> M.insert wsn (f ws) wsps) 
+        Just wsn -> modify (\vm -> let wsps = _wspaces vm 
+                                    in vm { _wspaces = case M.lookup wsn wsps of
+                                                          Nothing -> wsps
+                                                          Just ws -> M.insert wsn (f ws) wsps }) 
 
+type Tick = Integer
 
-data SyncFlag = SyncWait TimeSpec
+data SyncFlag = SyncWait Tick
               | NoSync
              deriving (Eq,Ord,Show)
 
@@ -71,12 +72,14 @@ data SyncFlag = SyncWait TimeSpec
 data VM = VM { _ip      :: Integer
              , _env     :: Env
              , _prg     :: Program
-             , _wspaces :: IORef (M.Map String WSpace)
+             , _wspaces :: M.Map String WSpace
              , _cwspace :: Maybe String
              , _sflag   :: SyncFlag
              , _tspec   :: MTSpec
              , _halt    :: Bool
              , _isJmp   :: Bool
+             , _gtick   :: Tick
+             , _buff    :: IORef Buffer
              }
      --        deriving Show
 
@@ -116,71 +119,61 @@ fetchIns = do
 setSFlag :: SyncFlag -> Computation ()
 setSFlag f = modify (\cpu -> cpu { _sflag = f })
 
-tickSleep :: Computation ()
-tickSleep = do
-  ts <- _tspec <$> get
-  let t =  fromIntegral (toNanoSecs $ valToCTS ts (MTVal 0 0 1)) `div` 2000 
-  liftIO $ threadDelay t
-  
 operateVM :: Computation ()
 operateVM = do
   hlt <- _halt <$> get
   unless hlt $
      do
-  --    tickSleep
       sf <- _sflag <$> get
       case sf of
-        SyncWait t1 -> do 
-                    liftIO $ do 
-                        delta <- loopM  (\i -> do  
-                                                    threadDelay 10000
-                                                    t  <- getTime Realtime
-                                                    if t < t1
-                                                      then return $ Left (i+1)
-                                                      else return $ Right $ (i,(t - t1)) ) 0
-                        print delta                                
-
-                    setSFlag NoSync
-                    stepIP
-                    fetchDecodeExecuteLoop
         NoSync -> do
           stepIP
           fetchDecodeExecuteLoop
+        SyncWait t1 ->do 
+                    whileM (do 
+                                tnow <- _gtick <$> get
+                                bufref <- _buff <$> get
+                                buf <- liftIO $ readIORef bufref
+                                -- fill buffer till t1 is reached  
+                                wsps <- _wspaces <$> get
+                                whileM ( liftIO $ ( > (2*buffsize)) <$> getSpace buf)
+                                let (val,wsps') = M.mapAccum getFrame 0 wsps
+                                liftIO $ pushStorable buf  val 
+                                modify (\vm -> vm { _gtick = _gtick vm + 1 ,_wspaces = wsps'})
+                                return $ t1 >= tnow)
+                    setSFlag NoSync
+                    stepIP
+                    fetchDecodeExecuteLoop
 
-{-
-operateVM :: Computation ()
-operateVM = do
-  hlt <- _halt <$> get
-  unless hlt $
-     do
-  --    tickSleep
-      sq <- _syncq <$> get
-      sf <- _sflag <$> get
-      t  <- liftIO $ getTime Realtime
-      let cq@(sq',sqtail) = partition (\(a,_,_) -> a <= t) $ nub sq
-      if null sq'
-        then do
-              setSyncQ sqtail
-              if sf == SyncWait 
-                then operateVM
-                else do
-                  stepIP
-                  fetchDecodeExecuteLoop
-        else do
-          let sq'' = sortBy (compare `on` (\(_,a,_) -> a)) sq'
-              e1@(t1,_,addr) = head sq''
-              newq = tail sq'' <> sqtail
-              e2@(t2,f,_) = head newq
-          if
-           | null newq -> setSFlag NoSync
-           | (f == SyncOn) -> setSFlag SyncOn
-           | (f == SyncINT) -> setSFlag SyncINT
-           | True -> error "Shouldnt happen :("
 
-          setSyncQ newq 
-          jmpIP addr
-          fetchDecodeExecuteLoop
--}
+getFrame :: Double -> WSpace -> (Double,WSpace)
+getFrame a ws = if 
+                | _play ws == Stop -> (a,ws)
+                | _len ws == 0 -> (a,ws)
+                | _play ws == Fwd -> let val = ws2sample ws
+                                      in (a+val,ws { _tick = _tick ws + 1 })
+                | _play ws == Bwd -> let val = ws2sample ws
+                                      in (a+val,ws { _tick = let t = _tick ws - 1
+                                                              in if t > 0
+                                                                  then t
+                                                                  else floor $_vlen ws * fromIntegral (_len ws)})
+
+
+
+
+
+
+ws2sample ws = let avlen = floor $ _vlen ws * fromIntegral (_len ws)
+                   ridx  = fromIntegral (_tick ws  `mod` avlen ) / fromIntegral avlen
+                   aidx = fromIntegral (_len ws) * ridx
+                   faidx = floor aidx
+                   caidx = (faidx + 1) `mod` _len ws
+                   frcaidx = aidx - fromIntegral faidx
+                   fval = _data ws SV.! fromIntegral faidx
+                   cval = _data ws SV.! fromIntegral caidx
+                in fval + ((cval-fval) * frcaidx)
+
+
 
 tellVM = do
   vm <- get
@@ -216,17 +209,17 @@ exec ins = do
                       else pure ()
         BPM b -> do
                   ts <- _tspec <$> get
-                  ts' <- liftIO $ timeSpecIO b (_sig ts) (_res ts)
+                  let ts' = timeSpec b (_sig ts) (_res ts) (_sps ts)
                   modify (\vm -> vm { _tspec = ts' } )
 
         SIG b c -> do
                   ts <- _tspec <$> get
-                  ts' <- liftIO $ timeSpecIO (_bpm ts) (b,c) (_res ts)
+                  let ts' = timeSpec (_bpm ts) (b,c) (_res ts) (_sps ts)
                   modify (\vm -> vm { _tspec = ts' } )
 
         SRST -> do
                   ts <- _tspec <$> get
-                  ts' <- liftIO $ timeSpecIO (_bpm ts) (_sig ts) (_res ts)
+                  let ts' = timeSpec (_bpm ts) (_sig ts) (_res ts) (_sps ts)
                   modify (\vm -> vm { _tspec = ts' } )
 
         FIT s -> do
@@ -243,21 +236,21 @@ exec ins = do
 
         WAIT (brs,bts,pls) -> do 
                                 ts <- _tspec <$> get
-                                let dt = valToCTS ts (MTVal (fromIntegral brs) 
+                                let dt = mtValToSamCount ts (MTVal (fromIntegral brs) 
                                                             (fromIntegral bts) 
                                                             (fromIntegral pls)
                                                      ) 
-                                t0  <- liftIO $ getTime Realtime
+                                t0 <- _gtick <$> get
                                 let tt = t0 + dt 
                                 modify (\vm -> vm { _sflag = SyncWait tt } )
 
         WAITT (brs,bts,pls) -> do 
                                 ts <- _tspec <$> get
-                                let t1 = valToCTS ts (MTVal (fromIntegral brs) 
+                                let t1 = mtValToSamCount ts (MTVal (fromIntegral brs) 
                                                             (fromIntegral bts) 
                                                             (fromIntegral pls)
                                                      ) 
-                                let tt = _origin ts + t1 
+                                let tt = t1 
                                 modify (\vm -> vm { _sflag = SyncWait tt } )
 
 
@@ -312,18 +305,28 @@ exec ins = do
  -- tellVM
   when (_halt vm) $ tell ["\n\nHalting .\n"]
 
-reset :: Program -> IO VM
-reset prg = do
-  s <- timeSpecIO 180 (4,4) 96
-  wsps <- newIORef M.empty
-  forkIO $ audioThread wsps
-  pure $ VM 0 M.empty prg wsps Nothing  NoSync s False True
+showBuf :: IORef Buffer -> IO ()
+showBuf br = do
+  b <- readIORef br
+  bs <- getSpace b
+  putStrLn $ "Buffsize: " ++ show bs 
+  threadDelay 1000000
+  showBuf br
 
 runComputation :: Program -> IO String 
 runComputation prg = do
-  p <- reset prg
-  (res,s,w) <- runCpu () p operateVM
-  return $  concat w
+  let s = timeSpec 180 (4,4) 96 44100
+  buf <- new (buffsize)
+  bufref <- newIORef buf
+  let p = VM 0 M.empty prg M.empty Nothing  NoSync s False True 0 bufref
+  --(res,s,w) <- runCpu () p operateVM
+  forkIO $ (do 
+              _ <- runCpu () p operateVM
+              return ())
+  threadDelay 2000000
+  forkIO $ audioThread bufref
+  showBuf bufref
+  return [] 
 
 loadNRun = do
   f <- readFile "s1.prg"
@@ -342,12 +345,12 @@ loadNRun = do
 displayIP :: Computation String
 displayIP = do
             vm <- get
-            let t0 = _origin $ _tspec vm
-            tnow <- liftIO $ getTime Realtime
-            let dt = toNanoSecs $ diffTimeSpec tnow t0
-                (nbars,rbars) = dt `divMod` toNanoSecs (valToCTS (_tspec vm) (MTVal 1 0 0))
-                (nbts,rbts) = rbars `divMod` toNanoSecs (valToCTS (_tspec vm) (MTVal 0 1 0))
-                (npls,rpls) = rbts `divMod` toNanoSecs (valToCTS (_tspec vm) (MTVal 0 0 1))
+            let t0 = 0 
+                tnow = _gtick vm 
+            let dt = tnow - t0
+                (nbars,rbars) = dt `divMod` (mtValToSamCount (_tspec vm) (MTVal 1 0 0))
+                (nbts,rbts) = rbars `divMod`(mtValToSamCount (_tspec vm) (MTVal 0 1 0))
+                (npls,rpls) = rbts `divMod` (mtValToSamCount (_tspec vm) (MTVal 0 0 1))
                 time = formatToString ("[" % left 4 '0'  % ":" 
                                            % left 2 '0'  % ":" 
                                            % left 3 '0' %  "]") nbars nbts npls 

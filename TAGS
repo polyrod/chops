@@ -1,0 +1,295 @@
+
+/home/rod/haskell/chops/Chops/Audio.hs,314
+module Chops.Audio Chops.Audio1,2
+type PlayState PlayState53,54
+mainWait mainWait56,57
+audioThread audioThread70,71
+processAudioOut processAudioOut80,81
+nextFrame nextFrame122,123
+getFrame getFrame130,131
+ws2sample ws2sample147,148
+toOneChannel toOneChannel160,161
+loadSample loadSample164,165
+
+/home/rod/haskell/chops/Chops/Cpu.hs,1147
+module Chops.Cpu Chops.Cpu5,6
+type Program Program34,35
+defaultWSpace defaultWSpace37,38
+ldWspace ldWspace39,40
+modifyWspace modifyWspace52,53
+data SyncFlag SyncFlag65,66
+data SyncFlag = SyncWait SyncWait65,66
+              | NoSyncNoSync66,67
+data VM VM70,71
+data VM = VM VM70,71
+data VM = VM { _ip _ip70,71
+             , _env _env71,72
+             , _prg _prg72,73
+             , _wspaces _wspaces73,74
+             , _cwspace _cwspace74,75
+             , _sflag _sflag75,76
+             , _tspec _tspec76,77
+             , _halt _halt77,78
+             , _isJmp _isJmp78,79
+newtype Cpu Cpu83,84
+    { getCpu getCpu85,86
+runCpu runCpu96,97
+type Computation Computation102,103
+stepIP stepIP104,105
+jmpIP jmpIP107,108
+fetchIns fetchIns110,111
+setSFlag setSFlag115,116
+tickSleep tickSleep118,119
+operateVM operateVM124,125
+tellVM tellVM184,185
+tellIP tellIP189,190
+fetchDecodeExecuteLoop fetchDecodeExecuteLoop195,196
+exec exec202,203
+reset reset314,315
+runComputation runComputation321,322
+loadNRun loadNRun327,328
+displayIP displayIP341,342
+displayVM displayVM357,358
+
+/home/rod/haskell/chops/Chops/AST.hs,1699
+module Chops.AST Chops.AST6,7
+class VType VType13,14
+  extr extr14,15
+  extrE extrE15,16
+  injt injt16,17
+data VarType VarType19,20
+  I I20,21
+  S S21,22
+  F F22,23
+  I I20,21
+  S S21,22
+  F F22,23
+instance VType VType Integer24,25
+  extr extr25,26
+  extrE extrE26,27
+  injt injt29,30
+instance VType VType Float31,32
+  extr extr32,33
+  extrE extrE33,34
+  injt injt36,37
+instance VType VType String38,39
+  extr extr39,40
+  extrE extrE40,41
+  injt injt42,43
+instance Show Show VarType44,45
+  show show45,46
+type Env Env52,53
+envLookup envLookup54,55
+data Expr Expr67,68
+  Con Con68,69
+  Var Var69,70
+  (:+:) )70,71
+prec prec80,81
+instance (S(Show a) => Show (Expr a)90,91
+  showsPrec showsPrec91,92
+eval eval107,108
+type Mrk Mrk117,118
+type Time Time118,119
+type Addr Addr119,120
+data Stmt Stmt121,122
+  BGN BGN122,123
+  SEL SEL124,125
+  LD LD125,126
+  BPM BPM126,127
+  SIG SIG127,128
+  SRST SRST128,129
+  FIT FIT129,130
+  MRK MRK130,131
+  SET SET131,132
+  PLAYF PLAYF132,133
+  PLAYB PLAYB133,134
+  SEEK SEEK134,135
+  WAIT WAIT135,136
+  WAITT WAITT136,137
+  JDNZ JDNZ137,138
+  JMP JMP138,139
+  ONBT ONBT139,140
+  STOP STOP140,141
+  HLT HLT141,142
+  BGN BGN122,123
+  SEL SEL124,125
+  LD LD125,126
+  BPM BPM126,127
+  SIG SIG127,128
+  SRST SRST128,129
+  FIT FIT129,130
+  MRK MRK130,131
+  SET SET131,132
+  PLAYF PLAYF132,133
+  PLAYB PLAYB133,134
+  SEEK SEEK134,135
+  WAIT WAIT135,136
+  WAITT WAITT136,137
+  JDNZ JDNZ137,138
+  JMP JMP138,139
+  ONBT ONBT139,140
+  STOP STOP140,141
+  HLT HLT141,142
+instance Show Show Stmt143,144
+ show show144,145
+
+/home/rod/haskell/chops/Chops/Parser.hs,1491
+module Chops.Parser Chops.Parser1,2
+languageDef languageDef15,16
+lexer lexer46,47
+identifier identifier48,49
+reserved reserved49,50
+reservedOp reservedOp50,51
+parens parens51,52
+integer integer55,56
+natural natural56,57
+float float57,58
+comma comma58,59
+colon colon59,60
+whiteSpace whiteSpace60,61
+stringLiteral stringLiteral61,62
+data MyParseState MyParseState63,64
+data MyParseState = MPS MPS63,64
+data MyParseState = MPS { _linenr _linenr63,64
+                        , _labelMap _labelMap64,65
+prs prs68,69
+program program70,71
+resolveRefs resolveRefs81,82
+line line93,94
+lbl lbl101,102
+stmt stmt106,107
+data TExpr TExpr125,126
+data TExpr = IE IE125,126
+data TExpr = IE (Expr Integer) | FE FE125,126
+data TExpr = IE (Expr Integer) | FE (Expr Float)  | SE SE125,126
+expr expr127,128
+fexpr fexpr130,131
+iexpr iexpr131,132
+foperators foperators134,135
+ioperators ioperators142,143
+fterm fterm150,151
+iterm iterm155,156
+stmtHLT stmtHLT162,163
+stmtSRST stmtSRST166,167
+stmtBGN stmtBGN170,171
+stmtFIT stmtFIT175,176
+stmtLD stmtLD180,181
+intAsFloat intAsFloat185,186
+stmtBPM stmtBPM189,190
+stmtSIG stmtSIG196,197
+stmtWAIT stmtWAIT203,204
+stmtWAITT stmtWAITT212,213
+stmtJMP stmtJMP221,222
+stmtJDNZ stmtJDNZ233,234
+stmtSEL stmtSEL247,248
+stmtSET stmtSET252,253
+stmtMRK stmtMRK262,263
+stmtPLAYF stmtPLAYF269,270
+stmtPLAYB stmtPLAYB274,275
+stmtSEEK stmtSEEK279,280
+stmtSTOP stmtSTOP284,285
+
+/home/rod/haskell/chops/Chops/WSpace.hs,561
+module Chops.WSpace Chops.WSpace0,1
+data PlayMode PlayMode5,6
+data PlayMode = Stop Stop5,6
+data PlayMode = Stop | Fwd Fwd5,6
+data PlayMode = Stop | Fwd | BwdBwd5,6
+type SData SData8,9
+data WSpace WSpace10,11
+data WSpace =  WSpace WSpace10,11
+data WSpace =  WSpace { _fname _fname10,11
+                      , _data _data11,12
+                      , _len _len12,13
+                      , _vlen _vlen13,14
+                      , _tick _tick14,15
+                      , _play _play15,16
+                      , _marks _marks16,17
+
+/home/rod/haskell/chops/Chops/Time.hs,549
+ module Chops.Time Chops.Time1,2
+type BPM BPM5,6
+type SIG SIG6,7
+type Pulse Pulse7,8
+data MTSpec MTSpec10,11
+data MTSpec = MTSpec MTSpec10,11
+data MTSpec = MTSpec {_bpm _bpm10,11
+                     ,_sig _sig11,12
+                     ,_res _res12,13
+                     ,_origin _origin13,14
+data MTVal MTVal17,18
+data MTVal = MTVal MTVal17,18
+data MTVal = MTVal  { _bar _bar17,18
+                    , _beat _beat18,19
+                    , _pulse _pulse19,20
+valToCTS valToCTS23,24
+timeSpecIO timeSpecIO32,33
+
+/home/rod/haskell/chops/Setup.hs,15
+main main1,2
+
+/home/rod/haskell/chops/Main.hs,121
+module Main Main1,2
+drawSample drawSample18,19
+main main30,31
+go go38,39
+inRange inRange66,67
+disp disp68,69
+
+/home/rod/haskell/chops/dist-newstyle/build/x86_64-linux/ghc-8.6.5/chops-0.1.0.0/x/cairodraw/build/cairodraw/autogen/Paths_chops.hs,1083
+module Paths_chops Paths_chops3,4
+catchIO catchIO17,18
+catchIO catchIO25,26
+version version27,28
+bindir, libdir, dynlibdir, datadir, libexecdir, sysconfdir sysconfdir29,30
+bindir, libdir, dynlibdir, datadir, libexecdir,libexecdir29,30
+bindir, libdir, dynlibdir, datadir,datadir29,30
+bindir, libdir, dynlibdir,dynlibdir29,30
+bindir, libdir,libdir29,30
+bindir,bindir29,30
+libdir libdir32,33
+dynlibdir dynlibdir33,34
+datadir datadir34,35
+libexecdir libexecdir35,36
+sysconfdir sysconfdir36,37
+getBinDir, getLibDir, getDynLibDir, getDataDir, getLibexecDir, getSysconfDir getSysconfDir38,39
+getBinDir, getLibDir, getDynLibDir, getDataDir, getLibexecDir,getLibexecDir38,39
+getBinDir, getLibDir, getDynLibDir, getDataDir,getDataDir38,39
+getBinDir, getLibDir, getDynLibDir,getDynLibDir38,39
+getBinDir, getLibDir,getLibDir38,39
+getBinDir,getBinDir38,39
+getLibDir getLibDir40,41
+getDynLibDir getDynLibDir41,42
+getDataDir getDataDir42,43
+getLibexecDir getLibexecDir43,44
+getSysconfDir getSysconfDir44,45
+getDataFileName getDataFileName46,47
+
+/home/rod/haskell/chops/dist-newstyle/build/x86_64-linux/ghc-8.6.5/chops-0.1.0.0/l/Chops/build/Chops/autogen/Paths_chops.hs,1083
+module Paths_chops Paths_chops3,4
+catchIO catchIO17,18
+catchIO catchIO25,26
+version version27,28
+bindir, libdir, dynlibdir, datadir, libexecdir, sysconfdir sysconfdir29,30
+bindir, libdir, dynlibdir, datadir, libexecdir,libexecdir29,30
+bindir, libdir, dynlibdir, datadir,datadir29,30
+bindir, libdir, dynlibdir,dynlibdir29,30
+bindir, libdir,libdir29,30
+bindir,bindir29,30
+libdir libdir32,33
+dynlibdir dynlibdir33,34
+datadir datadir34,35
+libexecdir libexecdir35,36
+sysconfdir sysconfdir36,37
+getBinDir, getLibDir, getDynLibDir, getDataDir, getLibexecDir, getSysconfDir getSysconfDir38,39
+getBinDir, getLibDir, getDynLibDir, getDataDir, getLibexecDir,getLibexecDir38,39
+getBinDir, getLibDir, getDynLibDir, getDataDir,getDataDir38,39
+getBinDir, getLibDir, getDynLibDir,getDynLibDir38,39
+getBinDir, getLibDir,getLibDir38,39
+getBinDir,getBinDir38,39
+getLibDir getLibDir40,41
+getDynLibDir getDynLibDir41,42
+getDataDir getDataDir42,43
+getLibexecDir getLibexecDir43,44
+getSysconfDir getSysconfDir44,45
+getDataFileName getDataFileName46,47

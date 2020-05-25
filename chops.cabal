@@ -29,7 +29,7 @@ library Chops
     ,mtl
     ,containers
     ,parsec
-    ,clock
+    ,concurrent-buffer
     ,containers
     ,formatting
     ,vector
@@ -72,7 +72,7 @@ executable cairodraw
    ,sdl2-cairo
    ,containers
    ,parsec
-   ,clock
+   ,concurrent-buffer
    ,formatting
    ,hsndfile
    ,hsndfile-vector

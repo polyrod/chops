@@ -50,8 +50,9 @@ import           Control.Monad.Random
 import           System.IO
 
 import Chops.WSpace 
+import ConcurrentBuffer
 
-type PlayState = M.Map String WSpace
+type PlayState = Buffer
 
 
 mainWait ::
@@ -122,39 +123,9 @@ processAudioOut psr input output nframes@(JACK.NFrames nframesInt) = do
 
 nextFrame :: IORef PlayState -> Jack.NFrames -> IO Double
 nextFrame psr i = do
-  wsps <- readIORef psr
-  let (val,wsps') = M.mapAccum getFrame 0 wsps
-  writeIORef psr  wsps'
+  buf <- readIORef psr
+  val <- pullStorable buf
   return val 
-
-
-getFrame :: Double -> WSpace -> (Double,WSpace)
-getFrame a ws = if 
-                | _play ws == Stop -> (a,ws)
-                | _len ws == 0 -> (a,ws)
-                | _play ws == Fwd -> let val = ws2sample ws
-                                      in (a+val,ws { _tick = _tick ws + 1 })
-                | _play ws == Bwd -> let val = ws2sample ws
-                                      in (a+val,ws { _tick = let t = _tick ws - 1
-                                                              in if t > 0
-                                                                  then t
-                                                                  else floor $_vlen ws * fromIntegral (_len ws)})
-
-
-
-
-
-
-ws2sample ws = let avlen = floor $ _vlen ws * fromIntegral (_len ws)
-                   ridx  = fromIntegral (_tick ws  `mod` avlen ) / fromIntegral avlen
-                   aidx = fromIntegral (_len ws) * ridx
-                   faidx = floor aidx
-                   caidx = (faidx + 1) `mod` _len ws
-                   frcaidx = aidx - fromIntegral faidx
-                   fval = _data ws V.! fromIntegral faidx
-                   cval = _data ws V.! fromIntegral caidx
-                in fval + ((cval-fval) * frcaidx)
-
 
 
 
