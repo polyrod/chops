@@ -51,8 +51,9 @@ import           System.IO
 
 import Chops.WSpace 
 import ConcurrentBuffer
+import Control.Concurrent.Chan.Unagi.Bounded
 
-type PlayState = Buffer
+type PlayState = OutChan Double
 
 
 mainWait ::
@@ -124,7 +125,8 @@ processAudioOut psr input output nframes@(JACK.NFrames nframesInt) = do
 nextFrame :: IORef PlayState -> Jack.NFrames -> IO Double
 nextFrame psr i = do
   buf <- readIORef psr
-  val <- pullStorable buf
+  --val <- pullStorable buf
+  val <- readChan buf
   return val 
 
 

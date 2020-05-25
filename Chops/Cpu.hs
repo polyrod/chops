@@ -9,7 +9,7 @@ import qualified Data.Map as M
 import Control.Monad
 import Control.Monad.Extra
 import Control.Monad.RWS
-import Control.Concurrent
+import Control.Concurrent (threadDelay,forkIO)
 
 import Data.List
 import Data.Ord
@@ -31,6 +31,7 @@ import qualified Data.Vector.Storable             as SV
 
 import Debug.Trace
 import ConcurrentBuffer
+import Control.Concurrent.Chan.Unagi.Bounded
 
 
 buffsize = 4096 * 8
@@ -79,7 +80,7 @@ data VM = VM { _ip      :: Integer
              , _halt    :: Bool
              , _isJmp   :: Bool
              , _gtick   :: Tick
-             , _buff    :: IORef Buffer
+             , _buff    :: IORef (InChan Double)
              }
      --        deriving Show
 
@@ -136,9 +137,10 @@ operateVM = do
                                 buf <- liftIO $ readIORef bufref
                                 -- fill buffer till t1 is reached  
                                 wsps <- _wspaces <$> get
-                                whileM ( liftIO $ ( > (2*buffsize)) <$> getSpace buf)
+                                --whileM ( liftIO $ ( > (2*buffsize)) <$> getSpace buf)
                                 let (val,wsps') = M.mapAccum getFrame 0 wsps
-                                liftIO $ pushStorable buf  val 
+                                --liftIO $ pushStorable buf  val 
+                                liftIO $ writeChan buf val
                                 modify (\vm -> vm { _gtick = _gtick vm + 1 ,_wspaces = wsps'})
                                 return $ t1 >= tnow)
                     setSFlag NoSync
@@ -305,10 +307,11 @@ exec ins = do
  -- tellVM
   when (_halt vm) $ tell ["\n\nHalting .\n"]
 
-showBuf :: IORef Buffer -> IO ()
+showBuf :: IORef (InChan a) -> IO ()
 showBuf br = do
   b <- readIORef br
-  bs <- getSpace b
+  --bs <- getSpace b
+  bs <- estimatedLength b
   putStrLn $ "Buffsize: " ++ show bs 
   threadDelay 1000000
   showBuf br
@@ -316,16 +319,20 @@ showBuf br = do
 runComputation :: Program -> IO String 
 runComputation prg = do
   let s = timeSpec 180 (4,4) 96 44100
-  buf <- new (buffsize)
-  bufref <- newIORef buf
-  let p = VM 0 M.empty prg M.empty Nothing  NoSync s False True 0 bufref
+  --buf <- new (buffsize)
+  --bufref <- newIORef buf
+  (ic,oc) <- newChan buffsize
+  icref <- newIORef ic
+  ocref <- newIORef oc
+  --let p = VM 0 M.empty prg M.empty Nothing  NoSync s False True 0 bufref
+  let p = VM 0 M.empty prg M.empty Nothing  NoSync s False True 0 icref
   --(res,s,w) <- runCpu () p operateVM
   forkIO $ (do 
               _ <- runCpu () p operateVM
               return ())
   threadDelay 2000000
-  forkIO $ audioThread bufref
-  showBuf bufref
+  forkIO $ audioThread ocref
+  showBuf icref
   return [] 
 
 loadNRun = do

@@ -46,6 +46,7 @@ library Chops
     ,MonadRandom
     ,extra
     ,bytestring
+    ,unagi-chan
   default-language:    Haskell2010
   GHC-Options:         -O2
 
@@ -88,6 +89,7 @@ executable cairodraw
    ,MonadRandom
    ,bytestring
    ,Chops
+   ,unagi-chan
   default-language:    Haskell2010
   GHC-Options:         -O2  -threaded -rtsopts
 
