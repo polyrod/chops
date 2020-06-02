@@ -66,7 +66,7 @@ data MyParseState = MPS { _linenr   :: Integer
                         }
 
 
-prs = runParser program (MPS (-1) M.empty) "prog"  
+prs fn f = runParser program (MPS (-1) M.empty) fn f  
 
 program :: GenParser Char MyParseState [(Integer,Stmt)]
 program = do

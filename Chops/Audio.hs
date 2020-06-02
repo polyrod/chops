@@ -1,4 +1,5 @@
 {-# Language MultiWayIf #-}
+{-# Language BangPatterns #-}
 module Chops.Audio (
   loadSample,
   audioThread
@@ -22,7 +23,7 @@ import           System.Random
 import           Data.Array.Storable                 (writeArray)
 
 import           Data.IORef                          (IORef, newIORef,
-                                                      readIORef, writeIORef)
+                                                      readIORef, writeIORef,atomicWriteIORef)
 
 import qualified Data.EventList.Absolute.TimeBody    as EventList
 import qualified Data.Map                            as M
@@ -53,7 +54,7 @@ import Chops.WSpace
 import ConcurrentBuffer
 import Control.Concurrent.Chan.Unagi.Bounded
 
-type PlayState = OutChan Double
+type PlayState = (OutChan (SV.Vector Double),SV.Vector Double)
 
 
 mainWait ::
@@ -124,11 +125,23 @@ processAudioOut psr input output nframes@(JACK.NFrames nframesInt) = do
 
 nextFrame :: IORef PlayState -> Jack.NFrames -> IO Double
 nextFrame psr i = do
-  buf <- readIORef psr
+  (buf,leftover) <- readIORef psr
   --val <- pullStorable buf
-  val <- readChan buf
-  return val 
-
+  if 
+    | SV.null leftover -> do
+          (el,_) <- tryReadChan buf
+          mval <- tryRead el
+          if mval == Nothing
+            then traceShow "Buffer underrun in nextFrame() " $ pure 0
+            else do
+                let (Just val) = mval
+                h <- SV.headM val
+                atomicWriteIORef psr (buf,SV.tail val)
+                return h
+    | otherwise -> do
+          h <- SV.headM leftover
+          atomicWriteIORef psr (buf,SV.tail leftover)
+          return h
 
 
 toOneChannel []       = []
@@ -137,7 +150,7 @@ toOneChannel (l:_:ss) = l : toOneChannel ss
 
 loadSample :: String -> IO (SV.Vector Double)
 loadSample fn = do
-  (info, Just x) <- SF.readFile fn
+  (info, Just !x) <- SF.readFile fn
   print info
   return $
     SV.map (* 0.5) $

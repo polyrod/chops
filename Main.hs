@@ -10,6 +10,7 @@ import qualified Sound.File.Sndfile.Buffer.Vector as BV
 import qualified Data.Vector.Storable             as SV
 
 import System.IO
+import System.Environment
 import Control.Monad
 
 import Chops.Cpu
@@ -30,7 +31,8 @@ drawSample (D a y w h) s = do
 
 main :: IO ()
 main = do
-  loadNRun
+  args <- getArgs
+  loadNRun $ args !! 0
 --  go 100
 
 

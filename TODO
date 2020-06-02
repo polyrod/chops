@@ -1,0 +1,5 @@
+* find dataleak
+* reduce Synchrinisation Overhad copy chunks instead of samples
+* update ghc ; +RTS -xn  (fast GC)
+* ringbuffer ?
+

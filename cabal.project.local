@@ -1,6 +1,8 @@
+allow-newer :
+  cairo:*
 
-package *
-  ghc-location: ghc
+profiling: False
+executable-profiling: False
 
-program-locations
-  ghc-location: ghc
+program-options
+  ghc-options: -fprof-auto

@@ -1,4 +1,4 @@
-# Revision history for cairodraw
+# Revision history for chops
 
 ## 0.1.0.0 -- YYYY-mm-dd
 

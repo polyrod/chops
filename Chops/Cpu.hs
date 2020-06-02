@@ -3,9 +3,10 @@
 {-# Language TypeApplications #-}
 {-# Language MultiWayIf #-}
 {-# Language OverloadedStrings #-}
+{-# Language BangPatterns #-}
 module Chops.Cpu where
 
-import qualified Data.Map as M
+import qualified Data.Map.Strict as M
 import Control.Monad
 import Control.Monad.Extra
 import Control.Monad.RWS
@@ -13,6 +14,7 @@ import Control.Concurrent (threadDelay,forkIO)
 
 import Data.List
 import Data.Ord
+import Data.Tuple (swap)
 import Data.Function
 
 import Data.IORef
@@ -33,12 +35,15 @@ import Debug.Trace
 import ConcurrentBuffer
 import Control.Concurrent.Chan.Unagi.Bounded
 
+import System.Mem
 
-buffsize = 4096 * 8
+buffsize =  64  
+chunksize = 128
+
 type Program = [Stmt]
 
 
-defaultWSpace = WSpace [] SV.empty 0 1.5 0 Fwd M.empty 
+defaultWSpace = WSpace [] SV.empty 0 1.0 0 Fwd M.empty 
 
 ldWspace :: String -> Computation WSpace
 ldWspace wsn = do
@@ -75,12 +80,12 @@ data VM = VM { _ip      :: Integer
              , _prg     :: Program
              , _wspaces :: M.Map String WSpace
              , _cwspace :: Maybe String
-             , _sflag   :: SyncFlag
+             , _sflag   :: !SyncFlag
              , _tspec   :: MTSpec
              , _halt    :: Bool
              , _isJmp   :: Bool
-             , _gtick   :: Tick
-             , _buff    :: IORef (InChan Double)
+             , _gtick   :: !Tick
+             , _buff    :: IORef (InChan (SV.Vector Double))
              }
      --        deriving Show
 
@@ -132,17 +137,22 @@ operateVM = do
           fetchDecodeExecuteLoop
         SyncWait t1 ->do 
                     whileM (do 
-                                tnow <- _gtick <$> get
                                 bufref <- _buff <$> get
                                 buf <- liftIO $ readIORef bufref
                                 -- fill buffer till t1 is reached  
                                 wsps <- _wspaces <$> get
-                                --whileM ( liftIO $ ( > (2*buffsize)) <$> getSpace buf)
-                                let (val,wsps') = M.mapAccum getFrame 0 wsps
-                                --liftIO $ pushStorable buf  val 
-                                liftIO $ writeChan buf val
-                                modify (\vm -> vm { _gtick = _gtick vm + 1 ,_wspaces = wsps'})
-                                return $ t1 >= tnow)
+                                tnow <- _gtick <$> get
+                                let rlen = if t1 - tnow > chunksize
+                                            then chunksize
+                                            else (t1-tnow)
+                                let f wss _ = swap $ M.mapAccum getFrame 0 wss
+                                let (!wsps',!sl) = mapAccumL f wsps [0..rlen]
+                                liftIO $ writeChan buf $ SV.fromList sl
+                                modify (\vm -> vm { _gtick = _gtick vm + rlen ,_wspaces = wsps'})
+                                return $ t1 > tnow)
+                    gt <- _gtick <$> get
+                    liftIO $ putStrLn $ "GTicK: " ++ (show gt) 
+                    liftIO performGC
                     setSFlag NoSync
                     stepIP
                     fetchDecodeExecuteLoop
@@ -158,7 +168,8 @@ getFrame a ws = if
                                       in (a+val,ws { _tick = let t = _tick ws - 1
                                                               in if t > 0
                                                                   then t
-                                                                  else floor $_vlen ws * fromIntegral (_len ws)})
+                                                                  else floor $ _vlen ws 
+                                                                             * fromIntegral (_len ws)})
 
 
 
@@ -258,9 +269,7 @@ exec ins = do
 
         SET s a -> do 
                     env <- _env <$> get
-                    let env' = case M.lookup s env of
-                                Nothing -> M.insert s (injt $ eval env a) env
-                                Just _  -> M.insert s (injt $ eval env a) env
+                    let env' = M.insert s (injt $ eval env a) env
                     modify (\vm -> vm { _env = env' } )
 
         MRK s a -> do 
@@ -310,34 +319,31 @@ exec ins = do
 showBuf :: IORef (InChan a) -> IO ()
 showBuf br = do
   b <- readIORef br
-  --bs <- getSpace b
   bs <- estimatedLength b
   putStrLn $ "Buffsize: " ++ show bs 
-  threadDelay 1000000
-  showBuf br
+  threadDelay 5000000
+  if bs < 0 
+    then return ()
+    else showBuf br
 
 runComputation :: Program -> IO String 
 runComputation prg = do
   let s = timeSpec 180 (4,4) 96 44100
-  --buf <- new (buffsize)
-  --bufref <- newIORef buf
   (ic,oc) <- newChan buffsize
   icref <- newIORef ic
-  ocref <- newIORef oc
-  --let p = VM 0 M.empty prg M.empty Nothing  NoSync s False True 0 bufref
+  ps <- newIORef (oc,SV.empty)
   let p = VM 0 M.empty prg M.empty Nothing  NoSync s False True 0 icref
-  --(res,s,w) <- runCpu () p operateVM
   forkIO $ (do 
               _ <- runCpu () p operateVM
               return ())
   threadDelay 2000000
-  forkIO $ audioThread ocref
+  forkIO $ audioThread ps 
   showBuf icref
   return [] 
 
-loadNRun = do
-  f <- readFile "s1.prg"
-  case prs f of
+loadNRun fn = do
+  f <- readFile fn
+  case prs fn f of
     (Left x) -> print x
     (Right s) -> do 
                   mapM_ (\(ni,i) -> do
