@@ -35,6 +35,7 @@ languageDef =
                                      , "wait"
                                      , "waitt"
                                      , "jdnz"
+                                     , "jdgz"
                                      , "jmp"
                                      , "onbt"
                                      , "stop"
@@ -106,6 +107,7 @@ lbl = do
 
 stmt =   stmtJMP
      <|> stmtJDNZ
+     <|> stmtJDGZ
      <|> stmtBGN
      <|> stmtLD
      <|> stmtBPM
@@ -244,6 +246,20 @@ stmtJDNZ = do
                                       Nothing -> (acc ++ "\n" ++ show pos ++ ":\n" ++ "Label '" ++ lab ++ ":' does not exist !!! ",undefined)
                                       Just a -> (acc,JDNZ var a))
     Just l -> return $  Right $ JDNZ var l
+
+stmtJDGZ = do
+  reserved "jdgz"
+  pos <- getPosition
+  var <- identifier
+  comma
+  lab <- identifier
+  m <- _labelMap <$> getState
+  case M.lookup lab m of
+    Nothing -> return $ Left (lab,\acc mi ->
+                                    case mi of
+                                      Nothing -> (acc ++ "\n" ++ show pos ++ ":\n" ++ "Label '" ++ lab ++ ":' does not exist !!! ",undefined)
+                                      Just a -> (acc,JDGZ var a))
+    Just l -> return $  Right $ JDGZ var l
 
 stmtSEL = do
   reserved "sel"

@@ -2,7 +2,9 @@
 {-# Language BangPatterns #-}
 module Chops.Audio (
   loadSample,
-  audioThread
+  audioThread,
+  audioThread',
+  MyPortName
 )where
 
 import qualified Sound.File.Sndfile               as SF
@@ -51,17 +53,18 @@ import           Control.Monad.Random
 import           System.IO
 
 import Chops.WSpace 
+import Chops.RBuf 
 import ConcurrentBuffer
 import Control.Concurrent.Chan.Unagi.Bounded
 
-type PlayState = (OutChan (SV.Vector Double),SV.Vector Double)
+type PlayState = RBuf Double
 
 
 mainWait ::
      JackExc.ThrowsErrno e
   => Jack.Client
   -> String
-  -> IORef PlayState
+  -> PlayState
   -> Sync.ExceptionalT e IO ()
 mainWait client name psr =
   Jack.withActivation client $
@@ -71,7 +74,30 @@ mainWait client name psr =
     hSetBuffering stdin NoBuffering
     Jack.waitForBreak
 
-audioThread :: IORef PlayState -> IO ()
+
+type MyPortName = String
+
+--portsFromList :: [MyPortName]
+
+portsFromList [] [] client psr = do
+          name <- Trans.lift $ getProgName
+          mainWait client name psr
+
+portsFromList [] (p:ps) client psr = do
+          JACK.withProcess client (processAudioOut' psr p) $ portsFromList [] ps client psr
+
+portsFromList (x:xs) ps client psr = do
+        JACK.withPort client x $ \output -> portsFromList xs (output:ps) client psr
+
+audioThread' :: [MyPortName] -> PlayState -> IO ()
+audioThread' pl psr = do
+  name <- getProgName
+  JACK.handleExceptions $
+    JACK.withClientDefault name $ \client ->
+      portsFromList pl [] client psr
+
+
+audioThread :: PlayState -> IO ()
 audioThread psr = do
   name <- getProgName
   JACK.handleExceptions $
@@ -81,8 +107,26 @@ audioThread psr = do
           JACK.withProcess client (processAudioOut psr input output) $
           mainWait client name psr
 
+processAudioOut' ::
+     PlayState
+  -> Audio.Port JACK.Output
+  -> JACK.NFrames
+  -> Sync.ExceptionalT E.Errno IO ()
+processAudioOut' psr output nframes@(JACK.NFrames nframesInt) = do
+  Trans.lift $ do
+    outArr <- Audio.getBufferArray output nframes
+    case JACK.nframesIndices nframes of
+      [] -> return ()
+      idxs ->
+        mapM_
+          (\i@(JACK.NFrames ii) -> do
+             f <- nextFrame psr i
+             writeArray outArr i (CT.CFloat $ double2Float f))
+          idxs
+
+
 processAudioOut ::
-     IORef PlayState
+     PlayState
   -> Midi.Port JACK.Input
   -> Audio.Port JACK.Output
   -> JACK.NFrames
@@ -123,25 +167,10 @@ processAudioOut psr input output nframes@(JACK.NFrames nframesInt) = do
              writeArray outArr i (CT.CFloat $ double2Float f))
           idxs
 
-nextFrame :: IORef PlayState -> Jack.NFrames -> IO Double
+nextFrame :: PlayState -> Jack.NFrames -> IO Double
 nextFrame psr i = do
-  (buf,leftover) <- readIORef psr
-  --val <- pullStorable buf
-  if 
-    | SV.null leftover -> do
-          (el,_) <- tryReadChan buf
-          mval <- tryRead el
-          if mval == Nothing
-            then traceShow "Buffer underrun in nextFrame() " $ pure 0
-            else do
-                let (Just val) = mval
-                h <- SV.headM val
-                atomicWriteIORef psr (buf,SV.tail val)
-                return h
-    | otherwise -> do
-          h <- SV.headM leftover
-          atomicWriteIORef psr (buf,SV.tail leftover)
-          return h
+  h <- pullRBuf psr
+  return h
 
 
 toOneChannel []       = []

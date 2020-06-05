@@ -53,6 +53,7 @@ library Chops
     Chops.Time
     Chops.Audio
     Chops.WSpace
+    Chops.RBuf
 
 executable chops-exe
   import: shared-config
@@ -63,6 +64,7 @@ executable chops-exe
                        ,Chops.Time
                        ,Chops.Audio
                        ,Chops.WSpace
+                       ,Chops.RBuf
   build-depends:       
    ,cairo-canvas 
    ,linear

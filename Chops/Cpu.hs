@@ -27,17 +27,17 @@ import Chops.Time
 import Chops.Parser
 import Chops.Audio
 import Chops.WSpace
+import Chops.RBuf
 
 import qualified Data.Vector.Storable             as SV
 
 
 import Debug.Trace
 import ConcurrentBuffer
-import Control.Concurrent.Chan.Unagi.Bounded
 
 import System.Mem
 
-buffsize =  64  
+buffsize =  1024  
 chunksize = 128
 
 type Program = [Stmt]
@@ -85,7 +85,7 @@ data VM = VM { _ip      :: Integer
              , _halt    :: Bool
              , _isJmp   :: Bool
              , _gtick   :: !Tick
-             , _buff    :: IORef (InChan (SV.Vector Double))
+             , _buff    :: RBuf Double
              }
      --        deriving Show
 
@@ -136,26 +136,21 @@ operateVM = do
           stepIP
           fetchDecodeExecuteLoop
         SyncWait t1 ->do 
-                    whileM (do 
-                                bufref <- _buff <$> get
-                                buf <- liftIO $ readIORef bufref
-                                -- fill buffer till t1 is reached  
-                                wsps <- _wspaces <$> get
-                                tnow <- _gtick <$> get
-                                let rlen = if t1 - tnow > chunksize
-                                            then chunksize
-                                            else (t1-tnow)
-                                let f wss _ = swap $ M.mapAccum getFrame 0 wss
-                                let (!wsps',!sl) = mapAccumL f wsps [0..rlen]
-                                liftIO $ writeChan buf $ SV.fromList sl
-                                modify (\vm -> vm { _gtick = _gtick vm + rlen ,_wspaces = wsps'})
-                                return $ t1 > tnow)
-                    gt <- _gtick <$> get
-                    liftIO $ putStrLn $ "GTicK: " ++ (show gt) 
-                    liftIO performGC
-                    setSFlag NoSync
-                    stepIP
-                    fetchDecodeExecuteLoop
+                    buf <- _buff <$> get
+                    wsps <- _wspaces <$> get
+                    tnow <- _gtick <$> get
+                    let (!val,!wsps') = M.mapAccum getFrame 0 wsps
+                    liftIO $ pushRBuf buf val
+                    modify (\vm -> vm { _gtick = _gtick vm + 1 ,_wspaces = wsps'})
+                    if t1 > tnow
+                      then operateVM
+                      else do
+                        gt <- _gtick <$> get
+                        liftIO $ putStrLn $ "GTicK: " ++ (show gt) 
+                        liftIO performGC
+                        setSFlag NoSync
+                        stepIP
+                        fetchDecodeExecuteLoop
 
 
 getFrame :: Double -> WSpace -> (Double,WSpace)
@@ -220,6 +215,17 @@ exec ins = do
                     if x' /= 0
                       then jmpIP addr
                       else pure ()
+
+        JDGZ a addr -> do
+                    env <- _env <$> get
+                    let x  = envLookup env a :: Integer
+                        x' = x - 1
+                        env' = M.insert a (injt  x') env
+                    modify (\vm -> vm { _env = env' } )
+                    if x' > 0
+                      then jmpIP addr
+                      else pure ()
+
         BPM b -> do
                   ts <- _tspec <$> get
                   let ts' = timeSpec b (_sig ts) (_res ts) (_sps ts)
@@ -316,29 +322,13 @@ exec ins = do
  -- tellVM
   when (_halt vm) $ tell ["\n\nHalting .\n"]
 
-showBuf :: IORef (InChan a) -> IO ()
-showBuf br = do
-  b <- readIORef br
-  bs <- estimatedLength b
-  putStrLn $ "Buffsize: " ++ show bs 
-  threadDelay 5000000
-  if bs < 0 
-    then return ()
-    else showBuf br
-
 runComputation :: Program -> IO String 
 runComputation prg = do
   let s = timeSpec 180 (4,4) 96 44100
-  (ic,oc) <- newChan buffsize
-  icref <- newIORef ic
-  ps <- newIORef (oc,SV.empty)
-  let p = VM 0 M.empty prg M.empty Nothing  NoSync s False True 0 icref
-  forkIO $ (do 
-              _ <- runCpu () p operateVM
-              return ())
-  threadDelay 2000000
-  forkIO $ audioThread ps 
-  showBuf icref
+  rb <- newRBuf buffsize
+  let p = VM 0 M.empty prg M.empty Nothing  NoSync s False True 0 rb 
+  forkIO $ audioThread rb 
+  runCpu () p operateVM
   return [] 
 
 loadNRun fn = do

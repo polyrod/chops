@@ -136,6 +136,7 @@ data Stmt where
   WAIT  :: Time -> Stmt
   WAITT :: Time -> Stmt
   JDNZ  :: String -> Addr -> Stmt
+  JDGZ  :: String -> Addr -> Stmt
   JMP   :: Addr -> Stmt
   ONBT  :: Mrk -> Stmt
   STOP  :: Stmt
@@ -144,6 +145,7 @@ data Stmt where
 instance Show Stmt where
  show (JMP x) = "JMP " ++ show x 
  show (JDNZ x a) = "JDNZ " ++ x ++ "," ++ show a
+ show (JDGZ x a) = "JDGZ " ++ x ++ "," ++ show a
  show (BGN s) = "BGN " ++ s
  show (LD s) = "LD " ++ show s
  show (BPM f) = "BPM " ++ show f

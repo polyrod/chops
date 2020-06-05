@@ -8,7 +8,7 @@
 
           sel   a1                    // select a1 as current context/setup/..?   TODO: find suiting name 
           ld    "indy-alarm.wav"           // Load audio.wav into current workspace
-          fit   2.0
+          fit   1.0
           stop
 
           sel   a2                    // select a1 as current context/setup/..?   TODO: find suiting name 
