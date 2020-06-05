@@ -57,6 +57,8 @@ import Chops.RBuf
 import ConcurrentBuffer
 import Control.Concurrent.Chan.Unagi.Bounded
 
+import Control.DeepSeq
+
 type PlayState = RBuf Double
 
 
@@ -64,9 +66,8 @@ mainWait ::
      JackExc.ThrowsErrno e
   => Jack.Client
   -> String
-  -> PlayState
   -> Sync.ExceptionalT e IO ()
-mainWait client name psr =
+mainWait client name =
   Jack.withActivation client $
   Trans.lift $ do
     putStrLn $ "started " ++ name ++ "..."
@@ -79,22 +80,23 @@ type MyPortName = String
 
 --portsFromList :: [MyPortName]
 
-portsFromList [] [] client psr = do
+portsFromList [] [] client = do
           name <- Trans.lift $ getProgName
-          mainWait client name psr
+          mainWait client name  
 
-portsFromList [] (p:ps) client psr = do
-          JACK.withProcess client (processAudioOut' psr p) $ portsFromList [] ps client psr
+portsFromList [] ps client = do
+          JACK.withProcess client (processAudioOut' ps) $ portsFromList [] [] client
 
-portsFromList (x:xs) ps client psr = do
-        JACK.withPort client x $ \output -> portsFromList xs (output:ps) client psr
+portsFromList ((x,xb):xs) ps client = do
+        Trans.lift $ putStrLn $ "Creating AudioPort : " ++ x 
+        JACK.withPort client x $ \output -> portsFromList xs ((output,xb):ps) client
 
-audioThread' :: [MyPortName] -> PlayState -> IO ()
-audioThread' pl psr = do
+audioThread' :: [(MyPortName,PlayState)] -> IO ()
+audioThread' pl = do
   name <- getProgName
   JACK.handleExceptions $
     JACK.withClientDefault name $ \client ->
-      portsFromList pl [] client psr
+      portsFromList pl [] client
 
 
 audioThread :: PlayState -> IO ()
@@ -105,15 +107,14 @@ audioThread psr = do
       JACK.withPort client "input" $ \input ->
         JACK.withPort client "output" $ \output ->
           JACK.withProcess client (processAudioOut psr input output) $
-          mainWait client name psr
+          mainWait client name
 
 processAudioOut' ::
-     PlayState
-  -> Audio.Port JACK.Output
+  [(Audio.Port JACK.Output,PlayState)]
   -> JACK.NFrames
   -> Sync.ExceptionalT E.Errno IO ()
-processAudioOut' psr output nframes@(JACK.NFrames nframesInt) = do
-  Trans.lift $ do
+processAudioOut' psr nframes@(JACK.NFrames nframesInt) = do
+  Trans.lift $ mapM_ (\(output,psr) -> do
     outArr <- Audio.getBufferArray output nframes
     case JACK.nframesIndices nframes of
       [] -> return ()
@@ -122,8 +123,28 @@ processAudioOut' psr output nframes@(JACK.NFrames nframesInt) = do
           (\i@(JACK.NFrames ii) -> do
              f <- nextFrame psr i
              writeArray outArr i (CT.CFloat $ double2Float f))
-          idxs
+          idxs) psr
 
+
+nextFrame :: PlayState -> Jack.NFrames -> IO Double
+nextFrame psr i = do
+  h <- pullRBuf psr
+  return $ force h
+
+
+toOneChannel []       = []
+toOneChannel [s]      = []
+toOneChannel (l:_:ss) = l : toOneChannel ss
+
+loadSample :: String -> IO (SV.Vector Double)
+loadSample fn = do
+  (info, Just !x) <- SF.readFile fn
+  print info
+  return $
+    SV.map (* 0.5) $
+    if SF.channels info == 2
+      then SV.fromList $ toOneChannel $ SV.toList $ BV.fromBuffer x
+      else BV.fromBuffer x
 
 processAudioOut ::
      PlayState
@@ -166,25 +187,5 @@ processAudioOut psr input output nframes@(JACK.NFrames nframesInt) = do
              f <- nextFrame psr i
              writeArray outArr i (CT.CFloat $ double2Float f))
           idxs
-
-nextFrame :: PlayState -> Jack.NFrames -> IO Double
-nextFrame psr i = do
-  h <- pullRBuf psr
-  return h
-
-
-toOneChannel []       = []
-toOneChannel [s]      = []
-toOneChannel (l:_:ss) = l : toOneChannel ss
-
-loadSample :: String -> IO (SV.Vector Double)
-loadSample fn = do
-  (info, Just !x) <- SF.readFile fn
-  print info
-  return $
-    SV.map (* 0.5) $
-    if SF.channels info == 2
-      then SV.fromList $ toOneChannel $ SV.toList $ BV.fromBuffer x
-      else BV.fromBuffer x
 
 

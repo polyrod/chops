@@ -40,6 +40,10 @@ languageDef =
                                      , "onbt"
                                      , "stop"
                                      , "hlt"
+                                     , "sop"
+                                     , "aconfig"
+                                     , "oport"
+                                     , "defaultoport"
                                      ]
            , Token.reservedOpNames = ["+", "-", "*", "/"]
            , Token.caseSensitive   = True
@@ -50,6 +54,7 @@ lexer = Token.makeTokenParser languageDef
 identifier = Token.identifier lexer -- parses an identifier
 reserved   = Token.reserved   lexer -- parses a reserved name
 reservedOp = Token.reservedOp lexer -- parses an operator
+braces     = Token.braces     lexer -- parses surrounding parenthesis:
 parens     = Token.parens     lexer -- parses surrounding parenthesis:
                                     --   parens p
                                     -- takes care of the parenthesis and
@@ -69,15 +74,16 @@ data MyParseState = MPS { _linenr   :: Integer
 
 prs fn f = runParser program (MPS (-1) M.empty) fn f  
 
-program :: GenParser Char MyParseState [(Integer,Stmt)]
+program :: GenParser Char MyParseState ([String],[(Integer,Stmt)])
 program = do
           whiteSpace
+          ac <- option [] aconfig
           ss <- many line
           eof
           m <- _labelMap <$> getState
           case resolveRefs m ss of
               Left x  ->  fail x
-              Right x -> return x
+              Right x -> return (ac,x)
 
 
 resolveRefs :: M.Map String Integer
@@ -91,6 +97,30 @@ resolveRefs labelmap ss = let (acc,ss') = mapAccumL resolv [] ss
     resolv acc (i,Right x) = (acc,(i,x))
     resolv acc (i,Left (lab,f)) = let (acc',stmt') = f acc (M.lookup lab labelmap)
                                   in (acc',(i,stmt'))
+
+
+
+aconfig :: GenParser Char MyParseState [String]
+aconfig = do
+          reserved "aconfig"
+          ps <- (braces port)
+          return ps
+
+port = do
+      dp <- dport
+      nps <- many nport
+      return $ [dp] <> nps
+  
+dport = do
+    reserved "defaultoport"
+    colon
+    stringLiteral
+
+nport = do
+    reserved "oport"
+    colon
+    p <- stringLiteral
+    return p
 
 line :: GenParser Char MyParseState (Integer,Either (String,String->Maybe Integer->(String,Stmt)) Stmt)
 line = do
@@ -114,6 +144,7 @@ stmt =   stmtJMP
      <|> stmtSIG
      <|> stmtSEL
      <|> stmtSET
+     <|> stmtSOP
      <|> stmtWAITT
      <|> stmtWAIT
      <|> stmtHLT
@@ -174,6 +205,11 @@ stmtBGN = do
   reserved "bgn"
   progname <- stringLiteral
   return $ Right $ BGN progname
+
+stmtSOP = do
+  reserved "sop"
+  portname <- stringLiteral
+  return $ Right $ SOP portname
 
 stmtFIT = do
   reserved "fit"

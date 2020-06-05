@@ -123,6 +123,7 @@ data Stmt where
   BGN   :: String -> Stmt
 --  PARA  :: String -> Expr a -> Stmt
   SEL   :: String -> Stmt
+  SOP   :: String -> Stmt
   LD    :: Expr String -> Stmt
   BPM   :: Float -> Stmt
   SIG   :: Int -> Int -> Stmt
@@ -147,6 +148,7 @@ instance Show Stmt where
  show (JDNZ x a) = "JDNZ " ++ x ++ "," ++ show a
  show (JDGZ x a) = "JDGZ " ++ x ++ "," ++ show a
  show (BGN s) = "BGN " ++ s
+ show (SOP pn) = "SOP " ++ pn
  show (LD s) = "LD " ++ show s
  show (BPM f) = "BPM " ++ show f
  show (SIG b r) = "SIG " ++ show b ++ "/" ++ show r

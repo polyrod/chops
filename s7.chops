@@ -1,0 +1,123 @@
+/*
+  S5 Test Program
+*/
+
+
+aconfig {
+  defaultoport: "foo"
+  oport: "output"
+}
+
+          bgn   "s5"                  // Begin of Program "s1"
+          bpm   192.0                 // Set sequencer BPM 
+          sig   8,8                   // Set sequencer TimeSignature
+
+          sel   a1                    // select a1 as current context/setup/..?   TODO: find suiting name 
+          ld    "audio.wav"           // Load audio.wav into current workspace
+          fit   1.0
+          stop
+
+          set   eight,1.0/8.0
+
+          mrk   m0,0.0
+          mrk   m1,eight
+          mrk   m2,2.0*eight
+          mrk   m3,3.0*eight
+          mrk   m4,4.0*eight
+          mrk   m5,5.0*eight
+          mrk   m6,6.0*eight
+          mrk   m7,7.0*eight
+
+
+          sel   bass
+          ld    "jungbass.wav"
+          stop
+
+          bpm   192.0
+          fit   0.5
+          mrk   b0,0.0
+
+          bpm   48.0
+          sel   git
+          sop   "output"
+          ld    "gitar_loop.wav"
+          mrk   g0,0.0
+          fit   0.5
+          stop
+
+          bpm   48.0
+          set   cx,2
+          set   dx,2
+          set   ex,2
+          srst 
+start:    jmp intro
+
+intro:    
+          sel       git
+          playf     g0
+          waitt     1:0:0
+          sel       bass
+          playf     b0
+          waitt     2:0:0
+          sel       bass
+          stop
+          sel       git
+          stop
+          sel       a1
+          playb     m0
+          wait      0:1:0
+          playb     m4
+          wait      0:1:0
+          playf     m6
+          sel       git
+          playb     g0
+          seek      0.25
+          sel       a1
+          wait      0:1:0
+          playf     m2
+          wait      0:1:0
+          playf     m6
+          sel       git
+          playf     g0
+          sel       a1
+          wait      0:1:0
+          sel       bass
+          playf     b0
+          sel       a1
+          playf     m4
+          wait      0:1:0
+          playf     m2
+          sel       git
+          playb     g0
+          seek      0.25
+          sel       a1
+          wait      0:1:0
+          playf     ms
+          sel       git
+          seek      0.25
+          sel       a1
+          wait      0:1:0
+          jdgz      cx, intro
+          bpm       24
+          jdgz      dx, intro
+          bpm       12
+          jdgz      ex, intro
+          jmp       outro
+
+outro:
+          sel       bass
+          stop
+          sel       a1
+          stop
+          bpm       96
+          sel       git
+          fit       1.0
+          playf     g0
+          wait      1:0:0
+          stop
+          jmp       h
+
+          
+h:                                    // label
+          hlt                         // halt program execution
+

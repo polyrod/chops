@@ -36,21 +36,21 @@ import Debug.Trace
 import ConcurrentBuffer
 
 import System.Mem
+import Control.DeepSeq
 
-buffsize =  1024  
-chunksize = 128
+buffsize = 2048  
 
 type Program = [Stmt]
 
 
-defaultWSpace = WSpace [] SV.empty 0 1.0 0 Fwd M.empty 
+defaultWSpace vm = pure $ WSpace [] SV.empty 0 1.0 0 Fwd M.empty (_dbname vm)
 
 ldWspace :: String -> Computation WSpace
 ldWspace wsn = do
   vm <- get
   let wsps = _wspaces vm
   case M.lookup wsn wsps of
-    Nothing -> do let nws = defaultWSpace 
+    Nothing -> do nws <- defaultWSpace vm
                   modify(\vm -> vm {_cwspace = Just wsn,_wspaces = M.insert wsn nws (_wspaces vm)})
                   pure nws
     Just ws' -> do
@@ -75,24 +75,25 @@ data SyncFlag = SyncWait Tick
              deriving (Eq,Ord,Show)
 
 
-data VM = VM { _ip      :: Integer
-             , _env     :: Env
-             , _prg     :: Program
-             , _wspaces :: M.Map String WSpace
-             , _cwspace :: Maybe String
-             , _sflag   :: !SyncFlag
-             , _tspec   :: MTSpec
-             , _halt    :: Bool
-             , _isJmp   :: Bool
-             , _gtick   :: !Tick
-             , _buff    :: RBuf Double
+data VM = VM { _ip        :: Integer
+             , _env       :: !Env
+             , _prg       :: Program
+             , _wspaces   :: !(M.Map String WSpace)
+             , _cwspace   :: Maybe String
+             , _sflag     :: !SyncFlag
+             , _tspec     :: MTSpec
+             , _halt      :: Bool
+             , _isJmp     :: Bool
+             , _gtick     :: !Tick
+             , _dbname    :: String
+             , _buffmap   :: !(M.Map String (RBuf Double))
              }
      --        deriving Show
 
 
 newtype Cpu r w s a =
   Cpu
-    { getCpu :: RWST r w s IO a
+    { getCpu :: (RWST r w s IO a)
     }
   deriving ( Functor
            , Applicative
@@ -112,10 +113,12 @@ runCpu r vm comp = runRWST (getCpu comp) r vm
 type Computation a = Cpu () [String] VM a
 
 stepIP :: Computation ()
-stepIP = modify (\cpu -> if _isJmp cpu then cpu { _isJmp = False } else cpu { _ip = _ip cpu +1 }) -- >> tellIP
+stepIP = modify (\cpu -> if _isJmp cpu then cpu { _isJmp = False } 
+                                       else cpu { _ip = _ip cpu +1 }) -- >> tellIP
 
 jmpIP :: Addr -> Computation ()
-jmpIP a = modify (\cpu -> cpu { _ip = a , _isJmp = True })
+jmpIP a = modify (\cpu -> 
+            cpu { _ip = a , _isJmp = True })
 
 fetchIns :: Computation Stmt
 fetchIns = do
@@ -135,37 +138,46 @@ operateVM = do
         NoSync -> do
           stepIP
           fetchDecodeExecuteLoop
-        SyncWait t1 ->do 
-                    buf <- _buff <$> get
-                    wsps <- _wspaces <$> get
-                    tnow <- _gtick <$> get
-                    let (!val,!wsps') = M.mapAccum getFrame 0 wsps
-                    liftIO $ pushRBuf buf val
-                    modify (\vm -> vm { _gtick = _gtick vm + 1 ,_wspaces = wsps'})
-                    if t1 > tnow
-                      then operateVM
-                      else do
-                        gt <- _gtick <$> get
-                        liftIO $ putStrLn $ "GTicK: " ++ (show gt) 
-                        liftIO performGC
-                        setSFlag NoSync
-                        stepIP
-                        fetchDecodeExecuteLoop
+        SyncWait t1 ->do
+              tnow <- _gtick <$> get
+              if t1 > tnow
+                then do
+                      bufmap <- _buffmap <$> get
+                      wsps <- _wspaces <$> get
+                      --liftIO . print . map fst $ M.toList wsps
+                      --liftIO . print . map fst $ M.toList bufmap
+                      let !(!vmap,!wsps') = M.mapAccum getFrame (M.empty) wsps
+                      _ <- M.traverseWithKey (\name val -> liftIO $ pushRBuf (bufmap M.! name) val) vmap
+                      modify (\vm -> vm { _gtick = _gtick vm + 1 ,_wspaces = wsps'})
+                      operateVM
+                else do
+                      liftIO $ putStrLn $ "GTicK: " ++ (show tnow) 
+                      setSFlag NoSync
+                      --liftIO $ performMinorGC
+                      liftIO performGC
+                      stepIP
+                      fetchDecodeExecuteLoop
 
 
-getFrame :: Double -> WSpace -> (Double,WSpace)
-getFrame a ws = if 
-                | _play ws == Stop -> (a,ws)
-                | _len ws == 0 -> (a,ws)
-                | _play ws == Fwd -> let val = ws2sample ws
-                                      in (a+val,ws { _tick = _tick ws + 1 })
-                | _play ws == Bwd -> let val = ws2sample ws
-                                      in (a+val,ws { _tick = let t = _tick ws - 1
-                                                              in if t > 0
-                                                                  then t
-                                                                  else floor $ _vlen ws 
-                                                                             * fromIntegral (_len ws)})
+getFrame :: M.Map String Double -> WSpace -> (M.Map String Double,WSpace)
+getFrame a ws = 
+  if 
+  | _play ws == Stop -> (a,ws)
+  | _len ws == 0 -> (a,ws)
 
+  | _play ws == Fwd -> 
+      let !val = ws2sample ws
+       in (M.insertWith (+) (_obufname ws) val a
+          ,ws { _tick = _tick ws + 1 })
+
+  | _play ws == Bwd -> 
+      let !val = ws2sample ws
+       in (M.insertWith (+) (_obufname ws) val a
+          ,ws { _tick = let t = _tick ws - 1
+                         in if t > 0
+                             then t
+                             else floor $ 
+                               _vlen ws * fromIntegral (_len ws)})
 
 
 
@@ -176,9 +188,9 @@ ws2sample ws = let avlen = floor $ _vlen ws * fromIntegral (_len ws)
                    aidx = fromIntegral (_len ws) * ridx
                    faidx = floor aidx
                    caidx = (faidx + 1) `mod` _len ws
-                   frcaidx = aidx - fromIntegral faidx
-                   fval = _data ws SV.! fromIntegral faidx
-                   cval = _data ws SV.! fromIntegral caidx
+                   !frcaidx = aidx - fromIntegral faidx
+                   !fval = _data ws SV.! fromIntegral faidx
+                   !cval = _data ws SV.! fromIntegral caidx
                 in fval + ((cval-fval) * frcaidx)
 
 
@@ -282,6 +294,12 @@ exec ins = do
                     env <- _env <$> get
                     modifyWspace (\ws ->  ws { _marks = M.insert s (eval env a) (_marks ws)})
 
+        SOP pn -> do 
+                    bufmap <- _buffmap <$> get
+                    modifyWspace (\ws -> case M.lookup pn bufmap of
+                                            Just _ -> ws { _obufname = pn}
+                                            Nothing -> ws)
+
         SEL ws -> do 
                     ldWspace ws 
                     pure ()
@@ -322,12 +340,22 @@ exec ins = do
  -- tellVM
   when (_halt vm) $ tell ["\n\nHalting .\n"]
 
-runComputation :: Program -> IO String 
-runComputation prg = do
+runComputation :: [String] -> Program -> IO String 
+runComputation ps prg = do
   let s = timeSpec 180 (4,4) 96 44100
-  rb <- newRBuf buffsize
-  let p = VM 0 M.empty prg M.empty Nothing  NoSync s False True 0 rb 
-  forkIO $ audioThread rb 
+  bl <- if null ps
+          then do
+                rb <- newRBuf buffsize
+                pure [("output",rb)]
+          else do
+                pbs <- mapM (\pn -> do
+                      b <- newRBuf buffsize
+                      return (pn,b)) $ nub ps
+                return pbs
+  let defb = fst $ head bl               
+                
+  let p = VM 0 M.empty prg M.empty Nothing  NoSync s False True 0 defb (M.fromList bl) 
+  forkIO $ audioThread' bl 
   runCpu () p operateVM
   return [] 
 
@@ -335,14 +363,16 @@ loadNRun fn = do
   f <- readFile fn
   case prs fn f of
     (Left x) -> print x
-    (Right s) -> do 
+    (Right (ps,s)) -> do 
                   mapM_ (\(ni,i) -> do
                           let (mnc:ps) = words $ show i 
                           putStr $ formatToString ("\n" % left 4 '0' % "| ") ni 
                           putStr $ formatToString ( right 7 ' ') mnc 
                           mapM_ (putStr . formatToString string) ps) s 
                   putStrLn "\n--------------------------------------\n"
-                  r <- runComputation $ map snd s
+                  mapM_ (\p -> putStrLn $ "Output Port : " ++ p ++ "\n") ps
+                  putStrLn "--------------------------------------\n"
+                  r <- runComputation ps $ map snd s
                   putStrLn r
 
 displayIP :: Computation String

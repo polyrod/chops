@@ -1,57 +1,78 @@
 
-/home/rod/haskell/chops/Chops/Audio.hs,314
-module Chops.Audio Chops.Audio1,2
-type PlayState PlayState53,54
-mainWait mainWait56,57
-audioThread audioThread70,71
-processAudioOut processAudioOut80,81
-nextFrame nextFrame122,123
-getFrame getFrame130,131
-ws2sample ws2sample147,148
-toOneChannel toOneChannel160,161
-loadSample loadSample164,165
+/home/rod/haskell/chops/Chops/RBuf.hs,322
+module Chops.RBuf(Chops.RBuf0,1
+newtype RBuf RBuf14,15
+data RingBuff RingBuff16,17
+data RingBuff a = RingBuff RingBuff16,17
+    _buff _buff17,18
+    _size _size18,19
+    _rdidx _rdidx19,20
+    _wtidx _wtidx20,21
+newRBuf newRBuf23,24
+pushRBuf pushRBuf30,31
+pullRBuf pullRBuf42,43
+testRB testRB55,56
 
-/home/rod/haskell/chops/Chops/Cpu.hs,1147
-module Chops.Cpu Chops.Cpu5,6
-type Program Program34,35
-defaultWSpace defaultWSpace37,38
-ldWspace ldWspace39,40
-modifyWspace modifyWspace52,53
-data SyncFlag SyncFlag65,66
-data SyncFlag = SyncWait SyncWait65,66
-              | NoSyncNoSync66,67
-data VM VM70,71
-data VM = VM VM70,71
-data VM = VM { _ip _ip70,71
-             , _env _env71,72
-             , _prg _prg72,73
-             , _wspaces _wspaces73,74
-             , _cwspace _cwspace74,75
-             , _sflag _sflag75,76
-             , _tspec _tspec76,77
-             , _halt _halt77,78
-             , _isJmp _isJmp78,79
-newtype Cpu Cpu83,84
-    { getCpu getCpu85,86
-runCpu runCpu96,97
-type Computation Computation102,103
-stepIP stepIP104,105
-jmpIP jmpIP107,108
-fetchIns fetchIns110,111
-setSFlag setSFlag115,116
-tickSleep tickSleep118,119
-operateVM operateVM124,125
-tellVM tellVM184,185
-tellIP tellIP189,190
-fetchDecodeExecuteLoop fetchDecodeExecuteLoop195,196
-exec exec202,203
-reset reset314,315
-runComputation runComputation321,322
-loadNRun loadNRun327,328
-displayIP displayIP341,342
-displayVM displayVM357,358
+/home/rod/haskell/chops/Chops/Audio.hs,406
+module Chops.Audio Chops.Audio2,3
+type PlayState PlayState59,60
+mainWait mainWait62,63
+type MyPortName MyPortName77,78
+portsFromList portsFromList81,82
+audioThread' audioThread'91,92
+audioThread audioThread99,100
+processAudioOut' processAudioOut'109,110
+processAudioOut processAudioOut127,128
+nextFrame nextFrame169,170
+toOneChannel toOneChannel175,176
+loadSample loadSample179,180
 
-/home/rod/haskell/chops/Chops/AST.hs,1699
+/home/rod/haskell/chops/Chops/Cpu.hs,1299
+module Chops.Cpu Chops.Cpu6,7
+buffsize buffsize39,40
+chunksize chunksize40,41
+type Program Program42,43
+defaultWSpace defaultWSpace45,46
+ldWspace ldWspace47,48
+modifyWspace modifyWspace59,60
+type Tick Tick70,71
+data SyncFlag SyncFlag72,73
+data SyncFlag = SyncWait SyncWait72,73
+              | NoSyncNoSync73,74
+data VM VM77,78
+data VM = VM VM77,78
+data VM = VM { _ip _ip77,78
+             , _env _env78,79
+             , _prg _prg79,80
+             , _wspaces _wspaces80,81
+             , _cwspace _cwspace81,82
+             , _sflag _sflag82,83
+             , _tspec _tspec83,84
+             , _halt _halt84,85
+             , _isJmp _isJmp85,86
+             , _gtick _gtick86,87
+             , _buff _buff87,88
+newtype Cpu Cpu92,93
+    { getCpu getCpu94,95
+runCpu runCpu105,106
+type Computation Computation111,112
+stepIP stepIP113,114
+jmpIP jmpIP116,117
+fetchIns fetchIns119,120
+setSFlag setSFlag124,125
+operateVM operateVM127,128
+getFrame getFrame155,156
+ws2sample ws2sample173,174
+tellVM tellVM185,186
+tellIP tellIP190,191
+fetchDecodeExecuteLoop fetchDecodeExecuteLoop196,197
+exec exec203,204
+runComputation runComputation324,325
+loadNRun loadNRun343,344
+displayIP displayIP357,358
+displayVM displayVM373,374
+
+/home/rod/haskell/chops/Chops/AST.hs,1741
 module Chops.AST Chops.AST6,7
 class VType VType13,14
   extr extr14,15
@@ -107,10 +128,11 @@ data Stmt Stmt121,122
   WAIT WAIT135,136
   WAITT WAITT136,137
   JDNZ JDNZ137,138
-  JMP JMP138,139
-  ONBT ONBT139,140
-  STOP STOP140,141
-  HLT HLT141,142
+  JDGZ JDGZ138,139
+  JMP JMP139,140
+  ONBT ONBT140,141
+  STOP STOP141,142
+  HLT HLT142,143
   BGN BGN122,123
   SEL SEL124,125
   LD LD125,126
@@ -126,68 +148,75 @@ data Stmt Stmt121,122
   WAIT WAIT135,136
   WAITT WAITT136,137
   JDNZ JDNZ137,138
-  JMP JMP138,139
-  ONBT ONBT139,140
-  STOP STOP140,141
-  HLT HLT141,142
-instance Show Show Stmt143,144
- show show144,145
+  JDGZ JDGZ138,139
+  JMP JMP139,140
+  ONBT ONBT140,141
+  STOP STOP141,142
+  HLT HLT142,143
+instance Show Show Stmt144,145
+ show show145,146
 
-/home/rod/haskell/chops/Chops/Parser.hs,1491
+/home/rod/haskell/chops/Chops/Parser.hs,1627
 module Chops.Parser Chops.Parser1,2
 languageDef languageDef15,16
-lexer lexer46,47
-identifier identifier48,49
-reserved reserved49,50
-reservedOp reservedOp50,51
-parens parens51,52
-integer integer55,56
-natural natural56,57
-float float57,58
-comma comma58,59
-colon colon59,60
-whiteSpace whiteSpace60,61
-stringLiteral stringLiteral61,62
-data MyParseState MyParseState63,64
-data MyParseState = MPS MPS63,64
-data MyParseState = MPS { _linenr _linenr63,64
-                        , _labelMap _labelMap64,65
-prs prs68,69
-program program70,71
-resolveRefs resolveRefs81,82
-line line93,94
-lbl lbl101,102
-stmt stmt106,107
-data TExpr TExpr125,126
-data TExpr = IE IE125,126
-data TExpr = IE (Expr Integer) | FE FE125,126
-data TExpr = IE (Expr Integer) | FE (Expr Float)  | SE SE125,126
-expr expr127,128
-fexpr fexpr130,131
-iexpr iexpr131,132
-foperators foperators134,135
-ioperators ioperators142,143
-fterm fterm150,151
-iterm iterm155,156
-stmtHLT stmtHLT162,163
-stmtSRST stmtSRST166,167
-stmtBGN stmtBGN170,171
-stmtFIT stmtFIT175,176
-stmtLD stmtLD180,181
-intAsFloat intAsFloat185,186
-stmtBPM stmtBPM189,190
-stmtSIG stmtSIG196,197
-stmtWAIT stmtWAIT203,204
-stmtWAITT stmtWAITT212,213
-stmtJMP stmtJMP221,222
-stmtJDNZ stmtJDNZ233,234
-stmtSEL stmtSEL247,248
-stmtSET stmtSET252,253
-stmtMRK stmtMRK262,263
-stmtPLAYF stmtPLAYF269,270
-stmtPLAYB stmtPLAYB274,275
-stmtSEEK stmtSEEK279,280
-stmtSTOP stmtSTOP284,285
+lexer lexer50,51
+identifier identifier52,53
+reserved reserved53,54
+reservedOp reservedOp54,55
+braces braces55,56
+parens parens56,57
+integer integer60,61
+natural natural61,62
+float float62,63
+comma comma63,64
+colon colon64,65
+whiteSpace whiteSpace65,66
+stringLiteral stringLiteral66,67
+data MyParseState MyParseState68,69
+data MyParseState = MPS MPS68,69
+data MyParseState = MPS { _linenr _linenr68,69
+                        , _labelMap _labelMap69,70
+prs prs73,74
+program program75,76
+resolveRefs resolveRefs87,88
+aconfig aconfig101,102
+port port107,108
+dport dport112,113
+nport nport117,118
+line line123,124
+lbl lbl131,132
+stmt stmt136,137
+data TExpr TExpr156,157
+data TExpr = IE IE156,157
+data TExpr = IE (Expr Integer) | FE FE156,157
+data TExpr = IE (Expr Integer) | FE (Expr Float)  | SE SE156,157
+expr expr158,159
+fexpr fexpr161,162
+iexpr iexpr162,163
+foperators foperators165,166
+ioperators ioperators173,174
+fterm fterm181,182
+iterm iterm186,187
+stmtHLT stmtHLT193,194
+stmtSRST stmtSRST197,198
+stmtBGN stmtBGN201,202
+stmtFIT stmtFIT206,207
+stmtLD stmtLD211,212
+intAsFloat intAsFloat216,217
+stmtBPM stmtBPM220,221
+stmtSIG stmtSIG227,228
+stmtWAIT stmtWAIT234,235
+stmtWAITT stmtWAITT243,244
+stmtJMP stmtJMP252,253
+stmtJDNZ stmtJDNZ264,265
+stmtJDGZ stmtJDGZ278,279
+stmtSEL stmtSEL292,293
+stmtSET stmtSET297,298
+stmtMRK stmtMRK307,308
+stmtPLAYF stmtPLAYF314,315
+stmtPLAYB stmtPLAYB319,320
+stmtSEEK stmtSEEK324,325
+stmtSTOP stmtSTOP329,330
 
 /home/rod/haskell/chops/Chops/WSpace.hs,561
 module Chops.WSpace Chops.WSpace0,1
@@ -206,37 +235,38 @@ data WSpace =  WSpace { _fname _fname10,11
                       , _play _play15,16
                       , _marks _marks16,17
 
-/home/rod/haskell/chops/Chops/Time.hs,549
+/home/rod/haskell/chops/Chops/Time.hs,597
  module Chops.Time Chops.Time1,2
-type BPM BPM5,6
-type SIG SIG6,7
-type Pulse Pulse7,8
+type BPM BPM4,5
+type SIG SIG5,6
+type Pulse Pulse6,7
+type SamplesPerSecond SamplesPerSecond7,8
 data MTSpec MTSpec10,11
 data MTSpec = MTSpec MTSpec10,11
 data MTSpec = MTSpec {_bpm _bpm10,11
                      ,_sig _sig11,12
                      ,_res _res12,13
-                     ,_origin _origin13,14
+                     ,_sps _sps13,14
 data MTVal MTVal17,18
 data MTVal = MTVal MTVal17,18
 data MTVal = MTVal  { _bar _bar17,18
                     , _beat _beat18,19
                     , _pulse _pulse19,20
-valToCTS valToCTS23,24
-timeSpecIO timeSpecIO32,33
+mtValToSamCount mtValToSamCount24,25
+timeSpec timeSpec33,34
 
 /home/rod/haskell/chops/Setup.hs,15
 main main1,2
 
 /home/rod/haskell/chops/Main.hs,121
 module Main Main1,2
-drawSample drawSample18,19
-main main30,31
-go go38,39
-inRange inRange66,67
-disp disp68,69
+drawSample drawSample19,20
+main main31,32
+go go40,41
+inRange inRange68,69
+disp disp70,71
 
-/home/rod/haskell/chops/dist-newstyle/build/x86_64-linux/ghc-8.6.5/chops-0.1.0.0/x/cairodraw/build/cairodraw/autogen/Paths_chops.hs,1083
+/home/rod/haskell/chops/dist-newstyle/build/x86_64-linux/ghc-8.10.1/chops-0.1.0.0/x/chops-exe/build/chops-exe/autogen/Paths_chops.hs,1083
 module Paths_chops Paths_chops3,4
 catchIO catchIO17,18
 catchIO catchIO25,26
@@ -265,7 +295,7 @@ getLibexecDir getLibexecDir43,44
 getSysconfDir getSysconfDir44,45
 getDataFileName getDataFileName46,47
 
-/home/rod/haskell/chops/dist-newstyle/build/x86_64-linux/ghc-8.6.5/chops-0.1.0.0/l/Chops/build/Chops/autogen/Paths_chops.hs,1083
+/home/rod/haskell/chops/dist-newstyle/build/x86_64-linux/ghc-8.10.1/chops-0.1.0.0/l/Chops/build/Chops/autogen/Paths_chops.hs,1083
 module Paths_chops Paths_chops3,4
 catchIO catchIO17,18
 catchIO catchIO25,26
