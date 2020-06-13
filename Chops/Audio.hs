@@ -54,10 +54,7 @@ import           System.IO
 
 import Chops.WSpace 
 import Chops.RBuf 
-import ConcurrentBuffer
-import Control.Concurrent.Chan.Unagi.Bounded
 
-import Control.DeepSeq
 
 type PlayState = RBuf Double
 
@@ -114,22 +111,25 @@ processAudioOut' ::
   -> JACK.NFrames
   -> Sync.ExceptionalT E.Errno IO ()
 processAudioOut' psr nframes@(JACK.NFrames nframesInt) = do
-  Trans.lift $ mapM_ (\(output,psr) -> do
-    outArr <- Audio.getBufferArray output nframes
+  Trans.lift $ do
+    buffArrs <- mapM (\(prt,rbf)-> do 
+                                      arr <- Audio.getBufferArray prt nframes
+                                      return (arr,rbf)) psr
     case JACK.nframesIndices nframes of
       [] -> return ()
       idxs ->
         mapM_
-          (\i@(JACK.NFrames ii) -> do
-             f <- nextFrame psr i
-             writeArray outArr i (CT.CFloat $ double2Float f))
-          idxs) psr
+          (\i@(JACK.NFrames ii) -> mapM_ (\(arr,rbf) -> do
+                                                          f <- nextFrame rbf
+                                                          writeArray arr i (CT.CFloat $ double2Float f)
+                                         ) buffArrs)
+          idxs 
 
 
-nextFrame :: PlayState -> Jack.NFrames -> IO Double
-nextFrame psr i = do
+nextFrame :: PlayState -> IO Double
+nextFrame psr = do
   h <- pullRBuf psr
-  return $ force h
+  return h
 
 
 toOneChannel []       = []
@@ -139,7 +139,7 @@ toOneChannel (l:_:ss) = l : toOneChannel ss
 loadSample :: String -> IO (SV.Vector Double)
 loadSample fn = do
   (info, Just !x) <- SF.readFile fn
-  print info
+--  print info
   return $
     SV.map (* 0.5) $
     if SF.channels info == 2
@@ -184,7 +184,7 @@ processAudioOut psr input output nframes@(JACK.NFrames nframesInt) = do
       idxs ->
         mapM_
           (\i@(JACK.NFrames ii) -> do
-             f <- nextFrame psr i
+             f <- nextFrame psr 
              writeArray outArr i (CT.CFloat $ double2Float f))
           idxs
 

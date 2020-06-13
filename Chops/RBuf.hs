@@ -4,7 +4,6 @@ module Chops.RBuf(
   newRBuf,
   pushRBuf,
   pullRBuf,
---  testRB
 )where
 
 import qualified Data.Vector.Storable.Mutable as MSV
@@ -12,7 +11,6 @@ import Data.IORef
 import Control.Monad.Extra
 import Control.Concurrent
 import System.Mem
-import Control.DeepSeq
 
 newtype RBuf a = RBuf (IORef (RingBuff a))
 
@@ -23,13 +21,6 @@ data RingBuff a = RingBuff {
     _wtidx :: !Int
   }
 
-instance (NFData a,MSV.Storable a) => NFData (RingBuff a) where
-  rnf rb = rnf (_buff rb) `seq`
-           rnf (_size rb) `seq`
-           rnf (_rdidx rb) `seq`
-           rnf (_wtidx rb) `seq`
-           ()
-
 newRBuf :: MSV.Storable a => Int -> IO (RBuf a)
 newRBuf size = do
   rbuf <- MSV.new size
@@ -37,7 +28,7 @@ newRBuf size = do
   return $ RBuf rb
 
 
-pushRBuf :: (NFData a,MSV.Storable a) => RBuf a -> a -> IO ()
+pushRBuf :: (MSV.Storable a) => RBuf a -> a -> IO ()
 pushRBuf b@(RBuf rb) a = do
   rbuf <- readIORef rb
   if ((_wtidx rbuf + 1) `mod` (_size rbuf)) == (_rdidx rbuf)
@@ -46,10 +37,10 @@ pushRBuf b@(RBuf rb) a = do
       pushRBuf b a
     else do
       MSV.write (_buff rbuf) (_wtidx rbuf) a
-      atomicModifyIORef' rb (\rbuf -> (force $ rbuf { _wtidx = (_wtidx rbuf + 1) `mod` (_size rbuf) },())) 
+      atomicModifyIORef' rb (\rbuf -> (rbuf { _wtidx = (_wtidx rbuf + 1) `mod` (_size rbuf) },())) 
       
 
-pullRBuf :: (NFData a ,MSV.Storable a) => RBuf a -> IO a
+pullRBuf :: (MSV.Storable a) => RBuf a -> IO a
 pullRBuf (RBuf rb) = do
   rbuf <- readIORef rb
   if ((_rdidx rbuf + 1) `mod` (_size rbuf)) == (_wtidx rbuf)
@@ -58,7 +49,7 @@ pullRBuf (RBuf rb) = do
           return a
     else do
           a <- MSV.read (_buff rbuf) (_rdidx rbuf) 
-          atomicModifyIORef' rb (\rbuf -> (force $ rbuf { _rdidx = (_rdidx rbuf + 1) `mod` (_size rbuf) },())) 
+          atomicModifyIORef' rb (\rbuf -> (rbuf { _rdidx = (_rdidx rbuf + 1) `mod` (_size rbuf) },())) 
           return a
   
 

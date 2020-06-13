@@ -22,7 +22,6 @@ common shared-config
     ,mtl
     ,containers
     ,parsec
-    ,concurrent-buffer
     ,containers
     ,formatting
     ,vector
@@ -39,8 +38,6 @@ common shared-config
     ,MonadRandom
     ,extra
     ,bytestring
-    ,unagi-chan
-    ,deepseq
   default-language:    Haskell2010
   GHC-Options:         -O2 -fllvm
 
@@ -71,7 +68,7 @@ executable chops-exe
    ,linear
    ,sdl2
    ,sdl2-cairo
-  GHC-Options:         -O2  -threaded -rtsopts "-with-rtsopts=-N -xn -s -qg1 -qb1 -w -H32K"
+  GHC-Options:         -O2  -threaded -rtsopts "-with-rtsopts=-N -xn -s -w -A128k -H2m "
 --  GHC-Options:         -O2  -threaded -rtsopts "-with-rtsopts=-N -p -s -I0.1 -hr"
 
 

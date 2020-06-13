@@ -6,6 +6,7 @@
 aconfig {
   defaultoport: "foo"
   oport: "output"
+  oport: "rev"
 }
 
           bgn   "s5"                  // Begin of Program "s1"
@@ -53,6 +54,7 @@ start:    jmp intro
 
 intro:    
           sel       git
+          sop       "rev"
           playf     g0
           waitt     1:0:0
           sel       bass
@@ -64,6 +66,16 @@ intro:
           stop
           sel       git
           stop
+          jmp       dubby
+
+drop:     set       dx,4
+          bpm       192
+          sel       bass
+          sop       "foo"
+          fit       0.5
+          bpm       48
+
+drop1:          
           sel       a1
           playb     m0
           wait      0:1:0
@@ -99,12 +111,31 @@ intro:
           seek      0.25
           sel       a1
           wait      0:1:0
-          jdgz      cx, intro
+          jdgz      cx, drop1
           bpm       24
-          jdgz      dx, intro
-          bpm       12
-          jdgz      ex, intro
+          jdgz      dx, drop1
           jmp       outro
+
+dubby:    bpm       192
+          sel       bass
+          fit       0.75
+          playf     b0
+          sop       "output"
+          sel       git
+          stop
+          sop       "rev"
+          sel       a1
+          stop
+          set       dx,2
+d1:          
+          wait      1:0:0
+          sel       git
+          playf     g0
+          wait      0:1:0
+          stop
+          wait      0:3:0
+          jdgz      dx,d1
+          jmp       drop
 
 outro:
           sel       bass
@@ -113,7 +144,7 @@ outro:
           stop
           bpm       96
           sel       git
-          sop       "foo"
+          sop       "rev"
           fit       1.0
           playf     g0
           wait      1:0:0
@@ -123,4 +154,3 @@ outro:
           
 h:                                    // label
           hlt                         // halt program execution
-

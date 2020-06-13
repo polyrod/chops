@@ -33,14 +33,13 @@ import qualified Data.Vector.Storable             as SV
 
 
 import Debug.Trace
-import ConcurrentBuffer
 
 import System.Mem
-import Control.DeepSeq
 
-buffsize = 2048  
+buffsize = 1024  
+debug = False
 
-type Program = [Stmt]
+type Program = [(Integer,Stmt)]
 
 
 defaultWSpace vm = pure $ WSpace [] SV.empty 0 1.0 0 Fwd M.empty (_dbname vm)
@@ -110,23 +109,32 @@ runCpu r vm comp = runRWST (getCpu comp) r vm
 
 
 
-type Computation a = Cpu () [String] VM a
+type Computation a = Cpu () () VM a
 
 stepIP :: Computation ()
 stepIP = modify (\cpu -> if _isJmp cpu then cpu { _isJmp = False } 
-                                       else cpu { _ip = _ip cpu +1 }) -- >> tellIP
+                                       else cpu { _ip = _ip cpu +1 }) 
 
 jmpIP :: Addr -> Computation ()
 jmpIP a = modify (\cpu -> 
             cpu { _ip = a , _isJmp = True })
 
-fetchIns :: Computation Stmt
+fetchIns :: Computation (Integer,Stmt)
 fetchIns = do
   ip <- _ip <$> get
-  (!! fromIntegral ip) . _prg <$> get
+  (!! fromIntegral ip ) . _prg <$> get
 
 setSFlag :: SyncFlag -> Computation ()
 setSFlag f = modify (\cpu -> cpu { _sflag = f })
+
+
+fetchDecodeExecuteLoop :: Computation ()
+fetchDecodeExecuteLoop = do
+  (ln,ins) <- fetchIns
+  when debug $ liftIO $ displayIns (ln,ins)
+  exec ins
+  operateVM
+
 
 operateVM :: Computation ()
 operateVM = do
@@ -144,14 +152,14 @@ operateVM = do
                 then do
                       bufmap <- _buffmap <$> get
                       wsps <- _wspaces <$> get
-                      --liftIO . print . map fst $ M.toList wsps
-                      --liftIO . print . map fst $ M.toList bufmap
                       let !(!vmap,!wsps') = M.mapAccum getFrame (M.empty) wsps
                       _ <- M.traverseWithKey (\name val -> liftIO $ pushRBuf (bufmap M.! name) val) vmap
                       modify (\vm -> vm { _gtick = _gtick vm + 1 ,_wspaces = wsps'})
                       operateVM
                 else do
-                      liftIO $ putStrLn $ "GTicK: " ++ (show tnow) 
+                  --    t <- displayIP
+                  --    liftIO $ putStrLn t
+                      when debug $ liftIO $ putStrLn "\n---------------------\n\n"
                       setSFlag NoSync
                       --liftIO $ performMinorGC
                       liftIO performGC
@@ -195,28 +203,12 @@ ws2sample ws = let avlen = floor $ _vlen ws * fromIntegral (_len ws)
 
 
 
-tellVM = do
-  vm <- get
-  s <- displayVM
-  tell [s]
-          
-tellIP = do
-  vm <- get
-  s <- displayIP
-  tell [s]
-
-
-fetchDecodeExecuteLoop :: Computation ()
-fetchDecodeExecuteLoop = do
-  ins <- fetchIns
-  exec ins
-  operateVM
 
 
 exec :: Stmt -> Computation ()
 exec ins = do
   case ins of
-        BGN s -> tell ["\nRunning Program '" ++ s ++ "'\n"]
+        BGN s -> liftIO $ putStrLn $ "\nRunning Program '" ++ s ++ "'\n"
         JMP a -> jmpIP a 
         JDNZ a addr -> do
                     env <- _env <$> get
@@ -239,6 +231,7 @@ exec ins = do
                       else pure ()
 
         BPM b -> do
+--                  liftIO $ putStrLn $ "\n ==== >>>> Changing BPM to  '" ++ (show b) ++ "'\n"
                   ts <- _tspec <$> get
                   let ts' = timeSpec b (_sig ts) (_res ts) (_sps ts)
                   modify (\vm -> vm { _tspec = ts' } )
@@ -259,9 +252,9 @@ exec ins = do
                   modifyWspace (\ws-> let sspb = 60.0 * 44100.0 / _bpm ts
                                           sspbar = sspb * fromIntegral (fst $ _sig ts)
                                           fspbar = fromIntegral $ _len ws
-                                          vlen' = (traceShow sspbar sspbar) / fspbar 
+                                          vlen' = sspbar / fspbar 
                                           ws' = ws { _vlen = (eval env s) * vlen' }
-                                       in traceShow (floor $ (fromIntegral $ _len ws) * _vlen ws') ws')   
+                                       in  ws')   
 
 
 
@@ -336,9 +329,6 @@ exec ins = do
                   
         _ -> return ()
         
-  vm <- get
- -- tellVM
-  when (_halt vm) $ tell ["\n\nHalting .\n"]
 
 runComputation :: [String] -> Program -> IO String 
 runComputation ps prg = do
@@ -356,6 +346,7 @@ runComputation ps prg = do
                 
   let p = VM 0 M.empty prg M.empty Nothing  NoSync s False True 0 defb (M.fromList bl) 
   forkIO $ audioThread' bl 
+  threadDelay 2000000
   runCpu () p operateVM
   return [] 
 
@@ -364,16 +355,18 @@ loadNRun fn = do
   case prs fn f of
     (Left x) -> print x
     (Right (ps,s)) -> do 
-                  mapM_ (\(ni,i) -> do
-                          let (mnc:ps) = words $ show i 
-                          putStr $ formatToString ("\n" % left 4 '0' % "| ") ni 
-                          putStr $ formatToString ( right 7 ' ') mnc 
-                          mapM_ (putStr . formatToString string) ps) s 
+                  mapM_ (displayIns) s 
                   putStrLn "\n--------------------------------------\n"
                   mapM_ (\p -> putStrLn $ "Output Port : " ++ p ++ "\n") ps
                   putStrLn "--------------------------------------\n"
-                  r <- runComputation ps $ map snd s
+                  r <- runComputation ps $ s
                   putStrLn r
+
+displayIns (ni,i) = do
+                          let (mnc:ps) = words $ show i 
+                          putStr $ formatToString ("\n" % left 4 '0' % "| ") ni 
+                          putStr $ formatToString ( right 7 ' ') mnc 
+                          mapM_ (putStr . formatToString string) ps
 
 displayIP :: Computation String
 displayIP = do
