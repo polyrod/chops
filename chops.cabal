@@ -42,27 +42,33 @@ common shared-config
   GHC-Options:         -O2 
 
 
-library Chops
+library 
   import: shared-config
-  exposed-modules: 
+  other-modules:       
     Chops.AST
-    Chops.Parser
     Chops.Cpu
-    Chops.Time
-    Chops.Audio
+    Chops.Parser
     Chops.WSpace
+    Chops.Audio
+    Chops.Time
     Chops.RBuf
+    Chops.GUI
+  exposed-modules: 
+    Chops
 
 executable chops-exe
   import: shared-config
   main-is:             Main.hs
-  other-modules:       Chops.Cpu
-                       ,Chops.Parser
-                       ,Chops.AST
-                       ,Chops.Time
-                       ,Chops.Audio
-                       ,Chops.WSpace
-                       ,Chops.RBuf
+  other-modules:       
+    Chops.AST
+    Chops.Cpu
+    Chops.Parser
+    Chops.WSpace
+    Chops.Audio
+    Chops.Time
+    Chops.RBuf
+    Chops.GUI
+    Chops
   build-depends:       
    ,cairo-canvas 
    ,linear
