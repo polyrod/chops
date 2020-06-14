@@ -38,6 +38,10 @@ common shared-config
     ,MonadRandom
     ,extra
     ,bytestring
+    ,cairo-canvas 
+    ,linear
+    ,sdl2
+    ,sdl2-cairo
   default-language:    Haskell2010
   GHC-Options:         -O2 
 
@@ -70,10 +74,6 @@ executable chops-exe
     Chops.GUI
     Chops
   build-depends:       
-   ,cairo-canvas 
-   ,linear
-   ,sdl2
-   ,sdl2-cairo
   GHC-Options:         -O2  -threaded -rtsopts "-with-rtsopts=-N -xn -s -w -A128k -H2m "
 --  GHC-Options:         -O2  -threaded -rtsopts "-with-rtsopts=-N -p -s -I0.1 -hr"
 
