@@ -35,8 +35,6 @@ jobs:
     - name: Install dependencies
       run: |
         cabal new-update
-        cabal new-build --only-dependencies --enable-tests --enable-benchmarks --allow-newer=cairo
+        cabal new-build --only-dependencies --allow-newer=cairo
     - name: Build
-      run: cabal new-build --enable-tests --enable-benchmarks --allow-newer --allow-older all
-    - name: Run tests
-      run: cabal test all
+      run: cabal new-build --enable-tests --enable-benchmarks --allow-newer=cairo
