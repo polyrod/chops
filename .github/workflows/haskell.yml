@@ -29,7 +29,9 @@ jobs:
           ${{ runner.os }}-build-${{ env.cache-name }}-
           ${{ runner.os }}-build-
           ${{ runner.os }}-
-
+    
+    - name: Install sdl2 dependency
+      run: apt-get -y install libsdl2-dev 
     - name: Install dependencies
       run: |
         cabal new-update
