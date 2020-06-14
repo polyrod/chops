@@ -31,7 +31,7 @@ jobs:
           ${{ runner.os }}-
     
     - name: Check installed sdl2 version
-      run: pkg-config --version sdl2 
+      run: pkg-config --modversion sdl2 
     - name: Install dependencies
       run: |
         cabal new-update
