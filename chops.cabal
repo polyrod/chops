@@ -39,7 +39,7 @@ common shared-config
     ,extra
     ,bytestring
   default-language:    Haskell2010
-  GHC-Options:         -O2 -fllvm
+  GHC-Options:         -O2 -- -fllvm
 
 
 library Chops
