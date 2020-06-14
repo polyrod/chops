@@ -31,7 +31,7 @@ jobs:
           ${{ runner.os }}-
     
     - name: apt-getting dependencies
-      run: sudo apt-get -y install libsdl2-dev libsndfile1-dev libjack-jackd2-dev
+      run: sudo apt-get -y install libsdl2-dev libsndfile1-dev libjack-jackd2-dev llvm-9-dev
     - name: Install dependencies
       run: |
         cabal new-update
