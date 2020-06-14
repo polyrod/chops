@@ -30,8 +30,8 @@ jobs:
           ${{ runner.os }}-build-
           ${{ runner.os }}-
     
-    - name: Check installed sdl2 version
-      run: pkg-config --modversion sdl2 
+    - name: Installing sdl2 version
+      run: sudo apt-get -y install libsdl2-dev 
     - name: Install dependencies
       run: |
         cabal new-update
