@@ -1,0 +1,171 @@
+/*
+  S5 Test Program
+*/
+
+
+aconfig {
+  defaultoport: "foo"
+  oport: "echo"
+  oport: "distort"
+  oport: "bass"
+}
+
+          bgn   "s5"                  // Begin of Program "s1"
+          bpm   192.0                 // Set sequencer BPM 
+          sig   8,8                   // Set sequencer TimeSignature
+
+          set   eight,1.0/8.0
+//------------------------------------
+          sel   bass
+          ld    "jungbass.wav"
+          fit   0.5
+          stop
+
+          mrk   m0,0.0
+          mrk   m1,eight
+          mrk   m2,2.0*eight
+          mrk   m3,3.0*eight
+          mrk   m4,4.0*eight
+          mrk   m5,5.0*eight
+          mrk   m6,6.0*eight
+          mrk   m7,7.0*eight
+
+//---------------------------------
+          sel   hp                    // select a1 as current context/setup/..?   TODO: find suiting name 
+          ld    "Hot_Pants.wav"           // Load audio.wav into current workspace
+          fit   1.0
+          stop
+
+          mrk   m0,0.0
+          mrk   m1,eight
+          mrk   m2,2.0*eight
+          mrk   m3,3.0*eight
+          mrk   m4,4.0*eight
+          mrk   m5,5.0*eight
+          mrk   m6,6.0*eight
+          mrk   m7,7.0*eight
+
+//------------------------------------
+          sel   su
+          ld    "Dancing.wav"
+          fit   1.0
+          stop
+
+          mrk   m0,0.0
+          mrk   m1,eight
+          mrk   m2,2.0*eight
+          mrk   m3,3.0*eight
+          mrk   m4,4.0*eight
+          mrk   m5,5.0*eight
+          mrk   m6,6.0*eight
+          mrk   m7,7.0*eight
+
+//------------------------------------
+          sel   a
+          ld    "AMFULL.wav"
+          fit   9.0
+          stop
+
+          mrk   m0,0.0
+          mrk   m1,eight
+          mrk   m2,2.0*eight
+          mrk   m3,3.0*eight
+          mrk   m4,4.0*eight
+          mrk   m5,5.0*eight
+          mrk   m6,6.0*eight
+          mrk   m7,7.0*eight
+          mrk   h0,0.0
+
+//------------------------------------
+          
+
+          bpm   48.0
+          sig   11,8
+          srst 
+
+start:   set cx,16 
+         jmp intro
+
+intro:   
+         sel      bass
+         sop      "bass"
+         playf    m0
+         sel      su
+         playf    m0
+         wait     0:1:0             // 1/8
+         stop
+         sel      hp
+         playf    m2
+         wait     0:1:0             // 2/8
+         stop
+         sel      su
+         sop      "distort"
+         playf    m2
+         wait     0:1:0             // 3/8
+         //sop      "foo"
+         stop
+         sel      hp
+         playf    m4
+         wait     0:1:0             // 4/8
+         stop
+         sel      bass
+         playb    m0
+         sel      a
+         playf    m1
+         wait     0:0:12
+         playf    m1
+         wait     0:0:12
+         playf    m1
+         wait     0:0:72            // 7+8/7
+         wait     0:1:0            // 7+8/7
+         stop
+         sel      su
+         playf    m3
+         wait     0:0:12
+         playf    m3
+         wait     0:0:12
+         playf    m3
+         wait     0:0:24
+         playf    m3
+         wait     0:0:24
+         playf    m3
+         wait     0:0:24            // 9/8
+         stop
+         sel      bass
+         playf    m0
+         sel      a
+         playf    m1
+         wait     0:0:12
+         playf    m1
+         wait     0:0:12
+         playf    m1
+         wait     0:0:24
+         sop      "echo"
+         playf    m1
+         wait     0:0:48            // 10/8
+         stop
+         sop      "foo"
+         sel      bass
+         stop
+         sel      hp
+         playf    m1
+         wait     0:0:24
+         playf    m1
+         wait     0:0:24
+         playf    m2
+         wait     0:0:12
+         playf    m2
+         wait     0:0:12
+         playf    m2
+         wait     0:0:6
+         playf    m2
+         wait     0:0:6
+         playf    m2
+         wait     0:0:6
+         playf    m2
+         wait     0:0:6             //11/8
+                  stop
+         jdgz     cx,intro
+                    
+h:                                    // label
+          hlt                         // halt program execution

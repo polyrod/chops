@@ -42,8 +42,9 @@ common shared-config
     ,linear
     ,sdl2
     ,sdl2-cairo
+    ,async
   default-language:    Haskell2010
-  GHC-Options:         -O2 
+  GHC-Options:         -O2 -fllvm -fast-llvm
 
 
 library 
