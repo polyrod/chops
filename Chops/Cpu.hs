@@ -36,7 +36,6 @@ import Debug.Trace
 
 import System.Mem
 
-buffsize = 1024  
 debug = False
 
 type Program = [(Integer,Stmt)]
@@ -329,38 +328,6 @@ exec ins = do
                   
         _ -> return ()
         
-
-runComputation :: [String] -> Program -> IO String 
-runComputation ps prg = do
-  let s = timeSpec 180 (4,4) 96 44100
-  bl <- if null ps
-          then do
-                rb <- newRBuf buffsize
-                pure [("output",rb)]
-          else do
-                pbs <- mapM (\pn -> do
-                      b <- newRBuf buffsize
-                      return (pn,b)) $ nub ps
-                return pbs
-  let defb = fst $ head bl               
-                
-  let p = VM 0 M.empty prg M.empty Nothing  NoSync s False True 0 defb (M.fromList bl) 
-  forkIO $ audioThread' bl 
-  threadDelay 2000000
-  runCpu () p operateVM
-  return [] 
-
-loadNRun fn = do
-  f <- readFile fn
-  case prs fn f of
-    (Left x) -> print x
-    (Right (ps,s)) -> do 
-                  mapM_ (displayIns) s 
-                  putStrLn "\n--------------------------------------\n"
-                  mapM_ (\p -> putStrLn $ "Output Port : " ++ p ++ "\n") ps
-                  putStrLn "--------------------------------------\n"
-                  r <- runComputation ps $ s
-                  putStrLn r
 
 displayIns (ni,i) = do
                           let (mnc:ps) = words $ show i 

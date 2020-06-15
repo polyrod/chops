@@ -140,11 +140,11 @@ loadSample :: String -> IO (SV.Vector Double)
 loadSample fn = do
   (info, Just !x) <- SF.readFile fn
 --  print info
-  return $
-    SV.map (* 0.5) $
-    if SF.channels info == 2
-      then SV.fromList $ toOneChannel $ SV.toList $ BV.fromBuffer x
-      else BV.fromBuffer x
+  let (!b) = SV.map (* 0.5) $
+                if SF.channels info == 2
+                 then SV.fromList $ toOneChannel $ SV.toList $ BV.fromBuffer x
+                 else BV.fromBuffer x
+  return b            
 
 processAudioOut ::
      PlayState
